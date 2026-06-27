@@ -1,0 +1,33 @@
+# Build results
+[BbRrDd]ebug/
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+[Ll]og/
+[Ll]ogs/
+.vs/
+*.user
+*.suo
+*.userprefs
+
+# .NET
+project.lock.json
+project.fragment.lock.json
+artifacts/
+*.nupkg
+*.snupkg
+publish/
+[Pp]ublished/
+
+# Rider / VS Code
+.idea/
+.vscode/
+*.swp
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# noise-snitch local data (rolling logs, exports)
+*.snitchlog
+snitch-data/
