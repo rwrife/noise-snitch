@@ -12,7 +12,9 @@ Windows shows you a *live* volume mixer, but the instant a sound stops, the evid
 
 ## Status
 
-🚧 Early. See [PLAN.md](./PLAN.md) for the roadmap and [issues](https://github.com/rwrife/noise-snitch/issues) for milestones.
+🚧 Early. **M1 done** — the tray app boots (icon + Quit). Next up: wiring NAudio
+to enumerate per-app audio sessions (M2). See [PLAN.md](./PLAN.md) for the
+roadmap and [issues](https://github.com/rwrife/noise-snitch/issues) for milestones.
 
 ## Planned MVP (v0.1)
 
@@ -26,12 +28,30 @@ Windows shows you a *live* volume mixer, but the instant a sound stops, the evid
 
 C# / .NET 8 · [NAudio](https://github.com/naudio/NAudio) (WASAPI / Core Audio sessions) · WinForms `NotifyIcon`. Boring, fast, Windows-native — ships as a single `.exe`.
 
-## Build (once scaffolded)
+## Build
+
+Requires the [.NET 8 SDK](https://dotnet.microsoft.com/download) on **Windows**
+(it's a WinForms tray app — `net8.0-windows`).
 
 ```sh
-dotnet build -c Release
+# build everything
+dotnet build noise-snitch.sln -c Release
+
+# run the tray app (look for the icon in your system tray)
 dotnet run --project src
 ```
+
+### Single-file exe
+
+```sh
+dotnet publish src/NoiseSnitch.csproj -c Release -r win-x64 \
+  --self-contained true -p:PublishSingleFile=true \
+  -p:IncludeNativeLibrariesForSelfExtract=true -o publish
+# -> publish/noise-snitch.exe
+```
+
+CI builds and uploads this `noise-snitch.exe` artifact on every push/PR
+(see [`.github/workflows/build.yml`](./.github/workflows/build.yml)).
 
 ## License
 

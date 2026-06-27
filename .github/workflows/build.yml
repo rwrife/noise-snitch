@@ -1,0 +1,44 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        run: dotnet restore noise-snitch.sln
+
+      - name: Build
+        run: dotnet build noise-snitch.sln -c Release --no-restore
+
+      # Self-contained single-file exe so users can just download and run it.
+      - name: Publish
+        run: >
+          dotnet publish src/NoiseSnitch.csproj
+          -c Release
+          -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -o publish
+
+      - name: Upload exe artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: noise-snitch-win-x64
+          path: publish/noise-snitch.exe
+          if-no-files-found: error
