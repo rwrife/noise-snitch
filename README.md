@@ -12,11 +12,13 @@ Windows shows you a *live* volume mixer, but the instant a sound stops, the evid
 
 ## Status
 
-🚧 Early. **M1 + M2 done** — the tray app boots (icon + Quit) and now wires up
-NAudio to enumerate per-app audio sessions on a timer, logging
-`{time · process · peak · session}` for every render session to a debug log
-(`%LOCALAPPDATA%\noise-snitch\noise-snitch.log`, also visible via DebugView).
-Next up: turning that stream into silent→active *noise events* (M3). See
+🚧 Early. **M1 + M2 + M3 done** — the tray app boots (icon + Quit), wires up
+NAudio to read per-app audio sessions on a timer, and now turns that stream into
+clean **noise events**: it detects the moment a session goes *silent → active*,
+debounces so a continuous stream snitches once (not every tick), and records each
+onset (`who · when · how loud`) into an in-memory ring buffer — also logged to
+`%LOCALAPPDATA%\noise-snitch\noise-snitch.log` (visible via DebugView). Next up:
+the tray **blotter UI** that renders those events (M4). See
 [PLAN.md](./PLAN.md) for the roadmap and
 [issues](https://github.com/rwrife/noise-snitch/issues) for milestones.
 
@@ -41,6 +43,9 @@ Requires the [.NET 8 SDK](https://dotnet.microsoft.com/download) on **Windows**
 # build everything
 dotnet build noise-snitch.sln -c Release
 
+# run the unit tests (edge-detection + ring buffer)
+dotnet test noise-snitch.sln -c Release
+
 # run the tray app (look for the icon in your system tray)
 dotnet run --project src
 ```
@@ -54,8 +59,8 @@ dotnet publish src/NoiseSnitch.csproj -c Release -r win-x64 \
 # -> publish/noise-snitch.exe
 ```
 
-CI builds and uploads this `noise-snitch.exe` artifact on every push/PR
-(see [`.github/workflows/build.yml`](./.github/workflows/build.yml)).
+CI builds, **runs the tests**, and uploads the `noise-snitch.exe` artifact on
+every push/PR (see [`.github/workflows/build.yml`](./.github/workflows/build.yml)).
 
 ## License
 

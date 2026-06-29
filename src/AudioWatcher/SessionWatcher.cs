@@ -6,16 +6,19 @@ using NoiseSnitch.Model;
 namespace NoiseSnitch.AudioWatcher;
 
 /// <summary>
-/// Drives <see cref="AudioSessionEnumerator"/> on a fixed interval and dumps each
-/// per-session reading to the debug log. This is the M2 "prove the data flows"
-/// loop: every tick we log <c>{time, process, peak, sessionName}</c> for every
-/// active render session.
+/// Drives <see cref="AudioSessionEnumerator"/> on a fixed interval, runs each
+/// tick's readings through the <see cref="EdgeDetector"/>, and records the
+/// resulting <see cref="NoiseEvent"/>s into an <see cref="EventStore"/> (also
+/// logging each onset).
+///
+/// This is the M3 loop: instead of dumping every session every tick (M2), we now
+/// emit a clean event only when an app *starts* making sound, debounced so a
+/// continuous stream snitches once rather than every tick. The blotter UI (M4)
+/// reads <see cref="Events"/>.
 ///
 /// Uses a WinForms <see cref="System.Windows.Forms.Timer"/> so ticks marshal
 /// onto the UI thread that owns the tray app; the underlying WASAPI COM objects
-/// are simplest to touch from a single STA thread. M3 will replace the raw dump
-/// with edge detection that raises a <c>NoiseEvent</c> only on silent → active
-/// transitions.
+/// are simplest to touch from a single STA thread.
 /// </summary>
 internal sealed class SessionWatcher : IDisposable
 {
@@ -24,15 +27,25 @@ internal sealed class SessionWatcher : IDisposable
 
     private readonly AudioSessionEnumerator _enumerator = new();
     private readonly System.Windows.Forms.Timer _timer = new();
+    private readonly EdgeDetector _detector;
+    private readonly EventStore _events;
 
     private bool _started;
     private bool _disposed;
 
-    public SessionWatcher(TimeSpan? interval = null)
+    public SessionWatcher(
+        TimeSpan? interval = null,
+        EdgeDetectorOptions? detectorOptions = null,
+        EventStore? events = null)
     {
         _timer.Interval = (int)(interval ?? DefaultInterval).TotalMilliseconds;
         _timer.Tick += OnTick;
+        _detector = new EdgeDetector(detectorOptions);
+        _events = events ?? new EventStore();
     }
+
+    /// <summary>The recent-events history the blotter (M4) renders.</summary>
+    public EventStore Events => _events;
 
     /// <summary>Begins polling. Idempotent.</summary>
     public void Start()
@@ -53,20 +66,13 @@ internal sealed class SessionWatcher : IDisposable
     private void OnTick(object? sender, EventArgs e)
     {
         var snapshots = _enumerator.Snapshot();
-        if (snapshots.Count == 0)
-        {
-            return;
-        }
 
-        // Dump every session this tick. Idle sessions are included too so we can
-        // see the full picture while bringing M2 up; M3 narrows this to edges.
-        foreach (AudioSessionSnapshot s in snapshots)
+        // Always run the detector — even an empty tick matters, because absent
+        // sessions are how a stopped stream re-arms for its next onset.
+        foreach (NoiseEvent ev in _detector.Process(snapshots))
         {
-            DebugLog.Write(
-                $"[audio] {s.TimestampUtc:O} {s.ProcessName} " +
-                $"peak={s.PeakValue:0.000} " +
-                $"state={(s.IsActive ? "active" : "idle")}" +
-                (string.IsNullOrWhiteSpace(s.SessionName) ? "" : $" session=\"{s.SessionName}\""));
+            _events.Add(ev);
+            DebugLog.Write($"[noise] {ev.TimestampUtc:O} {ev}");
         }
     }
 

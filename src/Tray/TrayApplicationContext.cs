@@ -8,10 +8,10 @@ namespace NoiseSnitch.Tray;
 
 /// <summary>
 /// Owns the system-tray <see cref="NotifyIcon"/> and keeps the app alive with no
-/// main window. As of M2 it also starts the <see cref="SessionWatcher"/>, which
-/// dumps per-app audio sessions to the debug log on a timer. Later milestones
-/// will subscribe this to real noise events, flash the icon, and open the
-/// blotter flyout.
+/// main window. As of M3 it starts the <see cref="SessionWatcher"/>, which detects
+/// silent → active onsets and records <c>NoiseEvent</c>s into its
+/// <see cref="SessionWatcher.Events"/> store (and the debug log). M4 will render
+/// those events in a blotter flyout and flash the icon on each new one.
 /// </summary>
 internal sealed class TrayApplicationContext : ApplicationContext
 {
@@ -40,8 +40,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
         // just surfaces the same "about" balloon so the icon feels responsive.
         _notifyIcon.DoubleClick += OnAbout;
 
-        // M2: start enumerating audio sessions and logging them. The watcher uses
-        // a WinForms timer, so its ticks run on this (UI) thread.
+        // M3: start watching. The watcher polls on a WinForms timer (ticks run on
+        // this UI thread), detects silent → active onsets, and records them. M4
+        // will subscribe to _watcher.Events to render the blotter + flash.
         _watcher = new SessionWatcher();
         _watcher.Start();
     }

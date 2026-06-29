@@ -25,6 +25,9 @@ jobs:
       - name: Build
         run: dotnet build noise-snitch.sln -c Release --no-restore
 
+      - name: Test
+        run: dotnet test noise-snitch.sln -c Release --no-build --verbosity normal
+
       # Self-contained single-file exe so users can just download and run it.
       - name: Publish
         run: >
