@@ -11,4 +11,9 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- WASAPI / Core Audio session enumeration + per-app peak meters. -->
+    <PackageReference Include="NAudio" Version="2.3.0" />
+  </ItemGroup>
+
 </Project>

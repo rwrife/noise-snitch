@@ -12,9 +12,13 @@ Windows shows you a *live* volume mixer, but the instant a sound stops, the evid
 
 ## Status
 
-🚧 Early. **M1 done** — the tray app boots (icon + Quit). Next up: wiring NAudio
-to enumerate per-app audio sessions (M2). See [PLAN.md](./PLAN.md) for the
-roadmap and [issues](https://github.com/rwrife/noise-snitch/issues) for milestones.
+🚧 Early. **M1 + M2 done** — the tray app boots (icon + Quit) and now wires up
+NAudio to enumerate per-app audio sessions on a timer, logging
+`{time · process · peak · session}` for every render session to a debug log
+(`%LOCALAPPDATA%\noise-snitch\noise-snitch.log`, also visible via DebugView).
+Next up: turning that stream into silent→active *noise events* (M3). See
+[PLAN.md](./PLAN.md) for the roadmap and
+[issues](https://github.com/rwrife/noise-snitch/issues) for milestones.
 
 ## Planned MVP (v0.1)
 
