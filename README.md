@@ -12,13 +12,15 @@ Windows shows you a *live* volume mixer, but the instant a sound stops, the evid
 
 ## Status
 
-🚧 Early. **M1 + M2 + M3 done** — the tray app boots (icon + Quit), wires up
-NAudio to read per-app audio sessions on a timer, and now turns that stream into
-clean **noise events**: it detects the moment a session goes *silent → active*,
-debounces so a continuous stream snitches once (not every tick), and records each
-onset (`who · when · how loud`) into an in-memory ring buffer — also logged to
-`%LOCALAPPDATA%\noise-snitch\noise-snitch.log` (visible via DebugView). Next up:
-the tray **blotter UI** that renders those events (M4). See
+🚧 Early. **M1–M4 done.** The tray app boots (icon + Quit), wires up
+NAudio to read per-app audio sessions on a timer, turns that stream into clean
+**noise events** (silent → active onset detection with debounce so a continuous
+stream snitches once), and now renders them in a **blotter flyout**: left-click
+(or double-click) the tray icon to pop a list of recent events — newest first,
+with relative timestamps (`3s ago — chrome`), auto-refreshing while open, and a
+friendly empty state when all is quiet. Events live in an in-memory ring buffer
+and are also logged to `%LOCALAPPDATA%\noise-snitch\noise-snitch.log`. Next up:
+**flash + polish** (M5) — icon flash on new events, app icons, settings. See
 [PLAN.md](./PLAN.md) for the roadmap and
 [issues](https://github.com/rwrife/noise-snitch/issues) for milestones.
 
