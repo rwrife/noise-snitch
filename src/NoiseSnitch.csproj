@@ -16,4 +16,9 @@
     <PackageReference Include="NAudio" Version="2.3.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Let the test project reach internal types (EdgeDetector, EventStore, etc.). -->
+    <InternalsVisibleTo Include="NoiseSnitch.Tests" />
+  </ItemGroup>
+
 </Project>
