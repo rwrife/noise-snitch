@@ -2,7 +2,9 @@ using System;
 using System.Drawing;
 using System.Windows.Forms;
 using NoiseSnitch.AudioWatcher;
+using NoiseSnitch.Config;
 using NoiseSnitch.Diagnostics;
+using NoiseSnitch.Model;
 using NoiseSnitch.Ui;
 
 namespace NoiseSnitch.Tray;
@@ -21,9 +23,21 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly NotifyIcon _notifyIcon;
     private readonly SessionWatcher _watcher;
     private readonly BlotterForm _blotter;
+    private readonly SettingsStore _settingsStore = new();
 
     public TrayApplicationContext()
     {
+        // M5: load persisted settings (poll interval, # events, thresholds).
+        // Load never throws — a missing/corrupt file yields clamped defaults.
+        Settings settings = _settingsStore.Load();
+        // Write it back so the file exists on disk for users to discover & edit
+        // (first run materializes a fully-populated settings.json).
+        _settingsStore.Save(settings);
+        DebugLog.Write(
+            $"[settings] poll={settings.PollIntervalMs}ms keep={settings.EventsToKeep} " +
+            $"peak={settings.PeakThreshold:0.000} release={settings.ReleaseMs}ms " +
+            $"file={_settingsStore.FilePath ?? "<unavailable>"}");
+
         var menu = new ContextMenuStrip();
         menu.Items.Add("Show blotter", null, OnShowBlotter);
         menu.Items.Add("About", null, OnAbout);
@@ -40,8 +54,15 @@ internal sealed class TrayApplicationContext : ApplicationContext
         };
 
         // M3: start watching. The watcher polls on a WinForms timer (ticks run on
-        // this UI thread), detects silent → active onsets, and records them.
-        _watcher = new SessionWatcher();
+        // this UI thread), detects silent → active onsets, and records them. M5:
+        // the cadence, ring-buffer size, and detector tunables now come from the
+        // persisted settings instead of hard-coded constants.
+        _watcher = new SessionWatcher(
+            interval: TimeSpan.FromMilliseconds(settings.PollIntervalMs),
+            detectorOptions: new EdgeDetectorOptions(
+                settings.PeakThreshold,
+                TimeSpan.FromMilliseconds(settings.ReleaseMs)),
+            events: new EventStore(settings.EventsToKeep));
 
         // M4: the blotter flyout reads the watcher's event store. Created up front
         // (hidden) so opening it from the tray is instant and it can subscribe to
