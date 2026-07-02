@@ -45,10 +45,11 @@ public sealed class BlotterFormatterTests
     }
 
     [Fact]
-    public void Line_Combines_RelativeTime_And_ProcessName()
+    public void Line_Combines_RelativeTime_And_FriendlyName()
     {
         var e = Event(Now.AddSeconds(-3), "chrome");
-        Assert.Equal("3s ago — chrome", BlotterFormatter.Line(e, Now));
+        // M5: raw "chrome" is shown as its friendly name.
+        Assert.Equal("3s ago — Google Chrome", BlotterFormatter.Line(e, Now));
     }
 
     [Fact]
