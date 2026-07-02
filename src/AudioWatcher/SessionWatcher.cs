@@ -2,6 +2,7 @@ using System;
 using System.Windows.Forms;
 using NoiseSnitch.Diagnostics;
 using NoiseSnitch.Model;
+using NoiseSnitch.Persistence;
 
 namespace NoiseSnitch.AudioWatcher;
 
@@ -29,6 +30,7 @@ internal sealed class SessionWatcher : IDisposable
     private readonly System.Windows.Forms.Timer _timer = new();
     private readonly EdgeDetector _detector;
     private readonly EventStore _events;
+    private readonly NoiseLog? _log;
 
     private bool _started;
     private bool _disposed;
@@ -36,12 +38,16 @@ internal sealed class SessionWatcher : IDisposable
     public SessionWatcher(
         TimeSpan? interval = null,
         EdgeDetectorOptions? detectorOptions = null,
-        EventStore? events = null)
+        EventStore? events = null,
+        NoiseLog? log = null)
     {
         _timer.Interval = (int)(interval ?? DefaultInterval).TotalMilliseconds;
         _timer.Tick += OnTick;
         _detector = new EdgeDetector(detectorOptions);
         _events = events ?? new EventStore();
+        // M6: when a durable log is supplied (persistence enabled in settings),
+        // each onset is also appended to disk. Null = in-memory only.
+        _log = log;
     }
 
     /// <summary>The recent-events history the blotter (M4) renders.</summary>
@@ -72,6 +78,7 @@ internal sealed class SessionWatcher : IDisposable
         foreach (NoiseEvent ev in _detector.Process(snapshots))
         {
             _events.Add(ev);
+            _log?.Append(ev); // M6: durable JSONL when persistence is on (no-op otherwise)
             DebugLog.Write($"[noise] {ev.TimestampUtc:O} {ev}");
         }
     }
