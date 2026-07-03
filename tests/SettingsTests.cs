@@ -22,6 +22,34 @@ public sealed class SettingsTests
     }
 
     [Fact]
+    public void Persistence_Defaults_Off_With_Sane_Log_Cap()
+    {
+        // M6: durable logging must be opt-in (privacy/local-only), and the cap
+        // must be a real, positive size out of the box.
+        var s = Settings.Defaults();
+        Assert.False(s.PersistLog);
+        Assert.Equal(Settings.DefaultMaxLogBytes, s.MaxLogBytes);
+        Assert.True(s.MaxLogBytes > 0);
+    }
+
+    [Fact]
+    public void Normalized_Clamps_MaxLogBytes_Into_Range()
+    {
+        // Non-positive -> default; below floor -> floor; above ceiling -> ceiling.
+        Assert.Equal(Settings.DefaultMaxLogBytes, new Settings { MaxLogBytes = 0 }.Normalized().MaxLogBytes);
+        Assert.Equal(Settings.DefaultMaxLogBytes, new Settings { MaxLogBytes = -1 }.Normalized().MaxLogBytes);
+        Assert.Equal(Settings.MinMaxLogBytes, new Settings { MaxLogBytes = 1 }.Normalized().MaxLogBytes);
+        Assert.Equal(Settings.MaxMaxLogBytes, new Settings { MaxLogBytes = long.MaxValue }.Normalized().MaxLogBytes);
+    }
+
+    [Fact]
+    public void Normalized_Preserves_PersistLog_Toggle()
+    {
+        Assert.True(new Settings { PersistLog = true }.Normalized().PersistLog);
+        Assert.False(new Settings { PersistLog = false }.Normalized().PersistLog);
+    }
+
+    [Fact]
     public void Normalized_Passes_Through_Valid_Values()
     {
         var s = new Settings

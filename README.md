@@ -12,7 +12,7 @@ Windows shows you a *live* volume mixer, but the instant a sound stops, the evid
 
 ## Status
 
-🚧 Early. **M1–M4 done; M5 in progress.** The tray app boots (icon + Quit),
+🚧 Early. **M1–M5 done; M6 in progress.** The tray app boots (icon + Quit),
 wires up NAudio to read per-app audio sessions on a timer, turns that stream into
 clean **noise events** (silent → active onset detection with debounce so a
 continuous stream snitches once), and renders them in a **blotter flyout**:
@@ -24,13 +24,23 @@ logged to `%LOCALAPPDATA%
 oise-snitch
 oise-snitch.log`.
 
-**New in M5 (so far):** friendly process names in the blotter, plus persisted
+**M5 delivered:** friendly process names in the blotter, plus persisted
 **settings** — poll interval, how many events to keep, and the onset
-peak/debounce thresholds now load from (and are written to)
+peak/debounce thresholds load from (and are written to)
 `%LOCALAPPDATA%
 oise-snitch\settings.json`, so you can tune the snitch and it
-remembers. Still to come this milestone: tray-icon flash/badge on new events and
-app icons. See [PLAN.md](./PLAN.md) for the roadmap and
+remembers. (Tray-icon flash/badge and app icons remain follow-ups on that
+milestone.)
+
+**New in M6 (so far):** optional **durable history**. Turn on `PersistLog` and
+every noise event is appended to a rolling, size-capped **JSONL** log
+(`%LOCALAPPDATA%
+oise-snitch
+oise-log.jsonl`) that survives restarts; a
+**“Copy last hour”** tray action puts a tidy, paste-ready report (with a per-app
+tally) on your clipboard so you can call out a repeat offender. Persistence is
+**off by default** — the snitch stays local-only until you opt in. See
+[PLAN.md](./PLAN.md) for the roadmap and
 [issues](https://github.com/rwrife/noise-snitch/issues) for milestones.
 
 ## Planned MVP (v0.1)
@@ -55,10 +65,60 @@ On first launch noise-snitch writes a settings file you can hand-edit:
 | `EventsToKeep` | `200` | Size of the in-memory blotter ring buffer. |
 | `PeakThreshold` | `0.015` | Peak meter floor (`0`–`1`) an app must cross to count as "sounding". |
 | `ReleaseMs` | `1000` | Debounce: continuous quiet required before the same app can snitch again (ms). |
+| `PersistLog` | `false` | **M6:** when `true`, append every event to the on-disk JSONL log (durable history). Off = memory-only. |
+| `MaxLogBytes` | `5242880` | **M6:** rolling size cap (bytes) for the log before the oldest lines are rotated out (default 5 MiB). |
 
 Values are range-checked on load — a missing, empty, corrupt, or out-of-range
 file safely falls back to the defaults, so the app always starts. Changes take
 effect on the next launch.
+
+## Durable history & export (M6)
+
+By default noise-snitch keeps history only in memory for the current session.
+Set `"PersistLog": true` in `settings.json` to also write a durable log:
+
+```
+%LOCALAPPDATA%\noise-snitch\noise-log.jsonl
+```
+
+The file is **JSONL** — one JSON object per line, appended as events happen, so
+it's trivially greppable and a crash costs at most the last partial line. When it
+grows past `MaxLogBytes` the oldest lines are dropped and the newer tail is kept
+(rotation-in-place), so it self-limits with no cron or cleanup.
+
+**Copy last hour:** right-click the tray icon → **Copy last hour** (shown only
+when persistence is on) to drop a paste-ready report on your clipboard, e.g.:
+
+```
+noise-snitch — 3 events (last hour) as of 14:05:12
+
+  14:05:07  Google Chrome   peak 0.42
+  14:03:55  Slack           peak 0.31
+  13:58:20  System sounds   peak 0.88
+
+Top offenders: Google Chrome ×1, Slack ×1, System sounds ×1
+```
+
+### Data format
+
+Each line is one event (`schema v1`); keys are kept short to keep the file small:
+
+| Key | Type | Meaning |
+| --- | --- | --- |
+| `t` | string | ISO-8601 (round-trip) **UTC** timestamp of the onset. |
+| `pid` | number | Owning process id (`0` = the Windows *system sounds* session). |
+| `name` | string | Resolved process name (e.g. `chrome`). |
+| `peak` | number | Peak meter value (`0`–`1`) at the moment of onset. |
+| `session` | string | Windows session display name, when present. |
+
+Example line:
+
+```json
+{"t":"2026-07-02T14:05:07.123Z","pid":4821,"name":"chrome","peak":0.42,"session":"Chrome"}
+```
+
+Unparseable lines (a hand-edit typo or a torn final line) are skipped on read,
+not fatal.
 
 ## Stack
 
