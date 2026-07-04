@@ -24,12 +24,14 @@ logged to `%LOCALAPPDATA%
 oise-snitch
 oise-snitch.log`.
 
-**M5 delivered:** friendly process names in the blotter, plus persisted
-**settings** — poll interval, how many events to keep, and the onset
-peak/debounce thresholds load from (and are written to)
-`%LOCALAPPDATA%
-oise-snitch\settings.json`, so you can tune the snitch and it
-remembers. (Tray-icon flash/badge and app icons remain follow-ups on that
+**M5 delivered:** the tray icon now **flashes** on every new noise event — the
+calm ear glyph briefly lights up (brighter amber + a glowing ring) so a glance at
+the tray tells you something just made a sound; bursts coalesce into one steady
+flash rather than strobing, then it settles back to calm. Plus friendly process
+names in the blotter and persisted **settings** — poll interval, how many events
+to keep, and the onset peak/debounce thresholds load from (and are written to)
+`%LOCALAPPDATA%\noise-snitch\settings.json`, so you can tune the snitch and it
+remembers. (Per-app **icons** in the blotter remain the one follow-up on that
 milestone.)
 
 **New in M6 (so far):** optional **durable history**. Turn on `PersistLog` and
