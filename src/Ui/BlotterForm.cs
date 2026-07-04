@@ -23,14 +23,19 @@ internal sealed class BlotterForm : Form
 {
     private const int RowHeight = 44;
     private const int VisibleRows = 8;
+    private const int IconSize = 24;
+    private const int IconLeftPad = 10;
+    private const int TextLeftPad = IconLeftPad + IconSize + 10; // text starts right of the icon
 
     private static readonly Color BackColorDark = Color.FromArgb(32, 34, 38);
     private static readonly Color RowAltColor = Color.FromArgb(38, 40, 45);
     private static readonly Color PrimaryText = Color.FromArgb(240, 240, 240);
     private static readonly Color SecondaryText = Color.FromArgb(150, 152, 158);
     private static readonly Color AccentText = Color.FromArgb(255, 196, 0);
+    private static readonly Color IconPlaceholder = Color.FromArgb(80, 82, 90);
 
     private readonly EventStore _events;
+    private readonly AppIconProvider _icons = new(IconSize);
     private readonly ListBox _list;
     private readonly Label _header;
     private readonly System.Windows.Forms.Timer _refreshTimer;
@@ -232,8 +237,10 @@ internal sealed class BlotterForm : Form
         NoiseEvent ev = _current[e.Index];
         DateTime now = DateTime.UtcNow;
 
-        var primaryRect = new Rectangle(b.X + 12, b.Y + 6, b.Width - 16, 20);
-        var detailRect = new Rectangle(b.X + 12, b.Y + 24, b.Width - 16, 16);
+        DrawRowIcon(e.Graphics, b, ev);
+
+        var primaryRect = new Rectangle(b.X + TextLeftPad, b.Y + 6, b.Width - TextLeftPad - 8, 20);
+        var detailRect = new Rectangle(b.X + TextLeftPad, b.Y + 24, b.Width - TextLeftPad - 8, 16);
 
         using var primaryFont = new Font("Segoe UI", 9.5f, FontStyle.Regular);
         using var detailFont = new Font("Segoe UI", 8f, FontStyle.Regular);
@@ -245,6 +252,34 @@ internal sealed class BlotterForm : Form
         TextRenderer.DrawText(
             e.Graphics, BlotterFormatter.Detail(ev), detailFont, detailRect,
             SecondaryText, TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
+    }
+
+    /// <summary>
+    /// Paints the per-app icon (M5) at the left of a row, vertically centered.
+    /// Falls back to a small muted dot when no icon could be resolved (system
+    /// sounds, exited/locked-down process, or extraction failure) so rows stay
+    /// visually aligned whether or not art is available.
+    /// </summary>
+    private void DrawRowIcon(Graphics g, Rectangle rowBounds, NoiseEvent ev)
+    {
+        int iconY = rowBounds.Y + (rowBounds.Height - IconSize) / 2;
+        var iconRect = new Rectangle(rowBounds.X + IconLeftPad, iconY, IconSize, IconSize);
+
+        Image? icon = _icons.Get(ev.ExecutablePath);
+        if (icon is not null)
+        {
+            g.DrawImage(icon, iconRect);
+            return;
+        }
+
+        // Fallback: a small centered dot as a neutral placeholder.
+        const int dot = 8;
+        var dotRect = new Rectangle(
+            iconRect.X + (IconSize - dot) / 2,
+            iconRect.Y + (IconSize - dot) / 2,
+            dot, dot);
+        using var brush = new SolidBrush(IconPlaceholder);
+        g.FillEllipse(brush, dotRect);
     }
 
     // Paint a faint 1px frame so the borderless flyout reads as a distinct panel.
@@ -261,6 +296,7 @@ internal sealed class BlotterForm : Form
         if (disposing)
         {
             _refreshTimer.Dispose();
+            _icons.Dispose();
             _header.Dispose();
             _list.Dispose();
         }

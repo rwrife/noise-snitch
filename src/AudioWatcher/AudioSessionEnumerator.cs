@@ -26,6 +26,12 @@ internal sealed class AudioSessionEnumerator : IDisposable
     // resolves (the entry is replaced with an "(exited)" label).
     private readonly Dictionary<uint, string> _processNameCache = new();
 
+    // Cache pid -> best-effort executable path (for the M5 blotter icon). Reading
+    // Process.MainModule.FileName is comparatively expensive and can throw
+    // (access denied / 32-vs-64-bit), so we resolve it once per pid. An empty
+    // string is a cached "couldn't get it" so we don't retry every tick.
+    private readonly Dictionary<uint, string> _executablePathCache = new();
+
     private bool _disposed;
 
     /// <summary>
@@ -87,8 +93,9 @@ internal sealed class AudioSessionEnumerator : IDisposable
         // it's frequently blank, which is fine.
         string sessionName = SafeDisplayName(session);
         string processName = ResolveProcessName(pid, session.IsSystemSoundsSession);
+        string executablePath = ResolveExecutablePath(pid, session.IsSystemSoundsSession);
 
-        return new AudioSessionSnapshot(now, pid, processName, sessionName, peak, active);
+        return new AudioSessionSnapshot(now, pid, processName, sessionName, peak, active, executablePath);
     }
 
     private static string SafeDisplayName(AudioSessionControl session)
@@ -139,6 +146,43 @@ internal sealed class AudioSessionEnumerator : IDisposable
 
         _processNameCache[pid] = name;
         return name;
+    }
+
+    /// <summary>
+    /// Best-effort full path to a pid's main-module executable, for the M5
+    /// blotter icon. Returns an empty string (never throws) for the system-sounds
+    /// session, exited processes, or modules we're not allowed to read; the empty
+    /// result is cached so we don't re-probe a locked-down process every tick.
+    /// </summary>
+    private string ResolveExecutablePath(uint pid, bool isSystemSounds)
+    {
+        if (isSystemSounds || pid == 0)
+        {
+            return string.Empty;
+        }
+
+        if (_executablePathCache.TryGetValue(pid, out var cached))
+        {
+            return cached;
+        }
+
+        string path;
+        try
+        {
+            using var proc = Process.GetProcessById((int)pid);
+            path = proc.MainModule?.FileName ?? string.Empty;
+        }
+        catch (Exception ex)
+        {
+            // ArgumentException (gone), InvalidOperationException (no main module),
+            // Win32Exception (access denied / bitness mismatch) — all expected and
+            // non-fatal; the blotter just shows its generic glyph for this app.
+            DebugLog.Write($"[audio] no exe path for pid {pid}: {ex.GetType().Name}");
+            path = string.Empty;
+        }
+
+        _executablePathCache[pid] = path;
+        return path;
     }
 
     public void Dispose()

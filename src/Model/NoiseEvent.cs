@@ -17,12 +17,18 @@ namespace NoiseSnitch.Model;
 /// <param name="ProcessName">Resolved process name (e.g. <c>chrome</c>) or best-effort fallback.</param>
 /// <param name="Peak">Peak meter value (<c>[0, 1]</c>) at the moment the onset was detected.</param>
 /// <param name="SessionName">Session display name as reported by Windows, when present.</param>
+/// <param name="ExecutablePath">
+/// Best-effort full path to the owning process's executable, used by the M5
+/// blotter to render the app's icon. May be empty when the process has exited or
+/// its path could not be read, in which case the UI falls back to a generic glyph.
+/// </param>
 internal readonly record struct NoiseEvent(
     DateTime TimestampUtc,
     uint ProcessId,
     string ProcessName,
     float Peak,
-    string SessionName)
+    string SessionName,
+    string ExecutablePath = "")
 {
     /// <summary>
     /// Builds a <see cref="NoiseEvent"/> from the snapshot that triggered the
@@ -33,7 +39,8 @@ internal readonly record struct NoiseEvent(
         s.ProcessId,
         s.ProcessName,
         s.PeakValue,
-        s.SessionName);
+        s.SessionName,
+        s.ExecutablePath);
 
     /// <summary>
     /// A short, log-friendly one-liner, e.g.
