@@ -34,12 +34,18 @@ public sealed class MuteActionFormatterTests
             MuteActionFormatter.ToggleLabel(4821, "   ", currentlyMuted: false));
     }
 
-    [Theory]
-    [InlineData(MuteOutcome.Muted, "Muted Google Chrome.")]
-    [InlineData(MuteOutcome.Unmuted, "Unmuted Google Chrome.")]
-    public void Feedback_Reports_New_State(MuteOutcome outcome, string expected)
+    [Fact]
+    public void Feedback_Muted_Reports_New_State()
     {
-        Assert.Equal(expected, MuteActionFormatter.Feedback(outcome, 4821, "chrome"));
+        Assert.Equal("Muted Google Chrome.",
+            MuteActionFormatter.Feedback(MuteOutcome.Muted, 4821, "chrome"));
+    }
+
+    [Fact]
+    public void Feedback_Unmuted_Reports_New_State()
+    {
+        Assert.Equal("Unmuted Google Chrome.",
+            MuteActionFormatter.Feedback(MuteOutcome.Unmuted, 4821, "chrome"));
     }
 
     [Fact]
