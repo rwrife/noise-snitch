@@ -18,6 +18,12 @@ namespace NoiseSnitch.Ui;
 /// Behaves like a typical tray flyout: it appears near the cursor/tray, sits
 /// above other windows, and hides itself when it loses focus (click elsewhere)
 /// rather than closing, so re-opening from the tray is instant.
+///
+/// v0.2 (issue #7) adds "Mute-the-snitched": right-click a row to mute/unmute
+/// that culprit's live audio session. The muting itself lives in the tray (which
+/// owns the <c>SessionMuter</c> and the set of muted pids); the blotter just asks
+/// via the injected callbacks and reflects muted rows (a 🔇 marker + struck-through
+/// name).
 /// </summary>
 internal sealed class BlotterForm : Form
 {
@@ -33,6 +39,7 @@ internal sealed class BlotterForm : Form
     private static readonly Color SecondaryText = Color.FromArgb(150, 152, 158);
     private static readonly Color AccentText = Color.FromArgb(255, 196, 0);
     private static readonly Color IconPlaceholder = Color.FromArgb(80, 82, 90);
+    private static readonly Color MutedText = Color.FromArgb(120, 122, 128);
 
     private readonly EventStore _events;
     private readonly AppIconProvider _icons = new(IconSize);
@@ -40,12 +47,33 @@ internal sealed class BlotterForm : Form
     private readonly Label _header;
     private readonly System.Windows.Forms.Timer _refreshTimer;
 
+    // v0.2 "Mute-the-snitched" (issue #7). The tray owns the actual muting; the
+    // blotter asks whether a culprit is muted (to render it) and requests a
+    // toggle when a row's context-menu item is clicked. Both default to no-ops so
+    // the form still works (and stays testable) if muting isn't wired up.
+    private readonly Func<NoiseEvent, bool> _isMuted;
+    private readonly Func<NoiseEvent, MuteOutcome> _toggleMute;
+
     // The snapshot currently rendered. Held so owner-draw can index into it.
     private IReadOnlyList<NoiseEvent> _current = Array.Empty<NoiseEvent>();
 
-    public BlotterForm(EventStore events)
+    /// <param name="events">The recent-events store this flyout renders.</param>
+    /// <param name="isMuted">
+    /// Returns whether the culprit behind an event is currently muted, so its row
+    /// can be drawn struck-through. Optional; defaults to "never muted".
+    /// </param>
+    /// <param name="toggleMute">
+    /// Mutes/unmutes the culprit behind an event and returns the outcome, invoked
+    /// when the row's context-menu toggle is clicked. Optional; defaults to a no-op.
+    /// </param>
+    public BlotterForm(
+        EventStore events,
+        Func<NoiseEvent, bool>? isMuted = null,
+        Func<NoiseEvent, MuteOutcome>? toggleMute = null)
     {
         _events = events ?? throw new ArgumentNullException(nameof(events));
+        _isMuted = isMuted ?? (_ => false);
+        _toggleMute = toggleMute ?? (_ => MuteOutcome.NoSession);
 
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
@@ -82,6 +110,8 @@ internal sealed class BlotterForm : Form
             Font = new Font("Segoe UI", 9f),
         };
         _list.DrawItem += OnDrawItem;
+        // v0.2: right-click a row to mute/unmute that culprit (issue #7).
+        _list.MouseUp += OnListMouseUp;
 
         Controls.Add(_list);
         Controls.Add(_header);
@@ -236,22 +266,104 @@ internal sealed class BlotterForm : Form
 
         NoiseEvent ev = _current[e.Index];
         DateTime now = DateTime.UtcNow;
+        bool muted = SafeIsMuted(ev);
 
         DrawRowIcon(e.Graphics, b, ev);
 
         var primaryRect = new Rectangle(b.X + TextLeftPad, b.Y + 6, b.Width - TextLeftPad - 8, 20);
         var detailRect = new Rectangle(b.X + TextLeftPad, b.Y + 24, b.Width - TextLeftPad - 8, 16);
 
-        using var primaryFont = new Font("Segoe UI", 9.5f, FontStyle.Regular);
+        // A muted culprit (v0.2 / issue #7) is drawn dimmed and struck through,
+        // with a 🔇 marker, so the blotter reflects that you've silenced it.
+        using var primaryFont = new Font("Segoe UI", 9.5f,
+            muted ? FontStyle.Strikeout : FontStyle.Regular);
         using var detailFont = new Font("Segoe UI", 8f, FontStyle.Regular);
 
+        string primary = BlotterFormatter.Line(ev, now);
+        if (muted)
+        {
+            primary = "🔇 " + primary;
+        }
+
         TextRenderer.DrawText(
-            e.Graphics, BlotterFormatter.Line(ev, now), primaryFont, primaryRect,
-            PrimaryText, TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
+            e.Graphics, primary, primaryFont, primaryRect,
+            muted ? MutedText : PrimaryText, TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
 
         TextRenderer.DrawText(
             e.Graphics, BlotterFormatter.Detail(ev), detailFont, detailRect,
             SecondaryText, TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
+    }
+
+    /// <summary>
+    /// v0.2 (issue #7): on right-click, work out which row (if any) is under the
+    /// cursor and pop a context menu offering to mute/unmute that culprit. The
+    /// system-sounds session is deliberately not offered (shared shell audio).
+    /// </summary>
+    private void OnListMouseUp(object? sender, MouseEventArgs e)
+    {
+        if (e.Button != MouseButtons.Right)
+        {
+            return;
+        }
+
+        int index = _list.IndexFromPoint(e.Location);
+        if (index < 0 || index >= _current.Count)
+        {
+            return;
+        }
+
+        NoiseEvent ev = _current[index];
+        if (!MuteActionFormatter.CanOfferToggle(ev.ProcessId))
+        {
+            return;
+        }
+
+        bool muted = SafeIsMuted(ev);
+        string label = MuteActionFormatter.ToggleLabel(ev.ProcessId, ev.ProcessName, muted);
+
+        var menu = new ContextMenuStrip();
+        menu.Items.Add(label, null, (_, _) => RequestToggle(ev));
+        // Dispose the transient menu once it closes (item clicked or dismissed).
+        // A ContextMenuStrip shown as a child of the list doesn't deactivate the
+        // flyout, so the blotter stays up while the menu is open.
+        menu.Closed += (_, _) => menu.Dispose();
+        menu.Show(_list, e.Location);
+    }
+
+    /// <summary>
+    /// Invokes the injected mute toggle for an event, then repaints so the row's
+    /// struck-through/marker state updates immediately. Exceptions from the
+    /// callback are swallowed to a debug note — a failed mute must never take down
+    /// the flyout — and the outcome is surfaced via the callback owner (tray).
+    /// </summary>
+    private void RequestToggle(NoiseEvent ev)
+    {
+        try
+        {
+            _toggleMute(ev);
+        }
+        catch (Exception)
+        {
+            // The tray-owned callback already logs/handles failure; never crash the UI.
+        }
+
+        _list.Invalidate();
+    }
+
+    /// <summary>
+    /// Asks the injected predicate whether a culprit is muted, treating any thrown
+    /// exception as "not muted" so a rendering pass can never fail.
+    /// </summary>
+    private bool SafeIsMuted(NoiseEvent ev)
+    {
+        try
+        {
+            return _isMuted(ev);
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     /// <summary>

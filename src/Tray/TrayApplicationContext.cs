@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
 using NoiseSnitch.AudioWatcher;
@@ -38,6 +39,13 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly FlashController _flash = new();
     private readonly System.Windows.Forms.Timer _flashTimer = new();
     private bool _showingFlash;
+
+    // v0.2 "Mute-the-snitched" (issue #7): the tray owns the muter (which touches
+    // WASAPI from this STA/UI thread) and remembers which pids we've muted so the
+    // blotter can render them struck-through even across later events. The set is
+    // best-effort UI state: a muted app that exits simply stops appearing.
+    private readonly SessionMuter _muter = new();
+    private readonly HashSet<uint> _mutedPids = new();
 
     public TrayApplicationContext()
     {
@@ -106,8 +114,12 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         // M4: the blotter flyout reads the watcher's event store. Created up front
         // (hidden) so opening it from the tray is instant and it can subscribe to
-        // new onsets while visible.
-        _blotter = new BlotterForm(_watcher.Events);
+        // new onsets while visible. v0.2 (issue #7): it also gets callbacks to
+        // query/toggle mute for a row's culprit, backed by the tray's muter.
+        _blotter = new BlotterForm(
+            _watcher.Events,
+            isMuted: IsCulpritMuted,
+            toggleMute: ToggleCulpritMute);
 
         // M5: flash the tray icon whenever an onset is recorded. Subscribing to
         // the store (rather than the watcher) means every event that reaches the
@@ -248,6 +260,48 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     private void ShowBlotterAtCursor() => _blotter.ShowNear(Cursor.Position);
 
+    /// <summary>
+    /// v0.2 (issue #7): does the blotter show this culprit as muted? Reflects our
+    /// remembered set (what the user toggled in-app) rather than re-probing WASAPI
+    /// on every repaint, which would be far too chatty for a paint path.
+    /// </summary>
+    private bool IsCulpritMuted(NoiseEvent e) => _mutedPids.Contains(e.ProcessId);
+
+    /// <summary>
+    /// v0.2 (issue #7): flip the mute state of the culprit behind a blotter row via
+    /// the <see cref="SessionMuter"/>, update our remembered set to match the
+    /// outcome, and show a short balloon so the user knows what happened. Runs on
+    /// the UI thread (invoked from the blotter's menu click). Returns the outcome
+    /// so the blotter can repaint immediately.
+    /// </summary>
+    private MuteOutcome ToggleCulpritMute(NoiseEvent e)
+    {
+        MuteOutcome outcome = _muter.Toggle(e.ProcessId);
+
+        switch (outcome)
+        {
+            case MuteOutcome.Muted:
+                _mutedPids.Add(e.ProcessId);
+                break;
+            case MuteOutcome.Unmuted:
+            case MuteOutcome.NoSession:
+                // No live session to mute (app went quiet/exited) or we just
+                // unmuted: either way it's no longer silenced by us.
+                _mutedPids.Remove(e.ProcessId);
+                break;
+            // SystemSoundsDeclined / Failed: leave remembered state untouched.
+        }
+
+        DebugLog.Write($"[mute] toggle pid {e.ProcessId} ({e.ProcessName}) -> {outcome}");
+
+        _notifyIcon.BalloonTipTitle = "noise-snitch";
+        _notifyIcon.BalloonTipText =
+            MuteActionFormatter.Feedback(outcome, e.ProcessId, e.ProcessName);
+        _notifyIcon.ShowBalloonTip(2000);
+
+        return outcome;
+    }
+
     private void OnAbout(object? sender, EventArgs e)
     {
         _notifyIcon.BalloonTipTitle = "noise-snitch";
@@ -266,6 +320,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _watcher.Events.Added -= OnNoiseAdded;
         _flashTimer.Stop();
         _watcher.Dispose();
+        _muter.Dispose();
         _blotter.HideFlyout();
         _notifyIcon.Visible = false;
         base.ExitThreadCore();
@@ -278,6 +333,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _watcher.Events.Added -= OnNoiseAdded;
             _flashTimer.Dispose();
             _watcher.Dispose();
+            _muter.Dispose();
             _blotter.Dispose();
             _notifyIcon.Dispose();
             _restingIcon.Dispose();

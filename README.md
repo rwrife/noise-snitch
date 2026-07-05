@@ -45,6 +45,14 @@ tally) on your clipboard so you can call out a repeat offender. Persistence is
 [PLAN.md](./PLAN.md) for the roadmap and
 [issues](https://github.com/rwrife/noise-snitch/issues) for milestones.
 
+**New (v0.2 backlog):** **Mute-the-snitched.** Right-click any blotter row to
+**mute the culprit** — noise-snitch finds that app's live audio session and
+silences it (EarTrumpet-lite), right from the row that snitched. Right-click
+again to unmute. Muted apps are shown dimmed and struck-through with a 🔇 marker
+so you can see at a glance who you've silenced. The shared **System sounds**
+session isn't offered (it's not a single culprit app), and if an app has already
+gone quiet there's simply nothing to mute.
+
 ## Planned MVP (v0.1)
 
 - Lives in the **system tray**, no main window.
