@@ -11,8 +11,9 @@ namespace NoiseSnitch.Ui;
 ///
 /// This is deliberately pure and WinForms-free so it's fully unit-testable and
 /// can later back both the list rows and tooltips. Resolving actual app *icons*
-/// needs the live process/exe on disk and is left to the WinForms layer; the
-/// text mapping lives here.
+/// needs the live process/exe on disk and lives in the WinForms layer
+/// (<see cref="AppIconProvider"/>, gated by <see cref="IconKey"/>); the text
+/// mapping lives here.
 ///
 /// Strategy:
 /// <list type="number">

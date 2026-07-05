@@ -17,12 +17,10 @@ wires up NAudio to read per-app audio sessions on a timer, turns that stream int
 clean **noise events** (silent → active onset detection with debounce so a
 continuous stream snitches once), and renders them in a **blotter flyout**:
 left-click (or double-click) the tray icon to pop a list of recent events —
-newest first, with relative timestamps and **friendly app names**
-(`3s ago — Google Chrome`), auto-refreshing while open, and a friendly empty
-state when all is quiet. Events live in an in-memory ring buffer and are also
-logged to `%LOCALAPPDATA%
-oise-snitch
-oise-snitch.log`.
+newest first, with **per-app icons**, relative timestamps and **friendly app
+names** (`3s ago — Google Chrome`), auto-refreshing while open, and a friendly
+empty state when all is quiet. Events live in an in-memory ring buffer and are
+also logged to `%LOCALAPPDATA%\noise-snitch\noise-snitch.log`.
 
 **M5 delivered:** the tray icon now **flashes** on every new noise event — the
 calm ear glyph briefly lights up (brighter amber + a glowing ring) so a glance at
@@ -31,8 +29,10 @@ flash rather than strobing, then it settles back to calm. Plus friendly process
 names in the blotter and persisted **settings** — poll interval, how many events
 to keep, and the onset peak/debounce thresholds load from (and are written to)
 `%LOCALAPPDATA%\noise-snitch\settings.json`, so you can tune the snitch and it
-remembers. (Per-app **icons** in the blotter remain the one follow-up on that
-milestone.)
+remembers. And the blotter now shows each culprit's **app icon** next to its
+name — extracted from the owning process's executable and cached, with a neutral
+placeholder dot when a process is a system session or has already exited — which
+closes out the M5 polish checklist.
 
 **New in M6 (so far):** optional **durable history**. Turn on `PersistLog` and
 every noise event is appended to a rolling, size-capped **JSONL** log

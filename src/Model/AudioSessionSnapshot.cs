@@ -24,13 +24,21 @@ namespace NoiseSnitch.Model;
 /// <param name="IsActive">
 /// True when the session is in the <c>AudioSessionStateActive</c> state.
 /// </param>
+/// <param name="ExecutablePath">
+/// Best-effort full path to the owning process's executable
+/// (e.g. <c>C:\Program Files\Google\Chrome\Application\chrome.exe</c>), used by
+/// the M5 blotter to extract the app's icon. Often empty — the process may have
+/// exited, be a system session (pid 0), or be inaccessible without elevation —
+/// in which case the UI falls back to a generic glyph.
+/// </param>
 internal readonly record struct AudioSessionSnapshot(
     DateTime TimestampUtc,
     uint ProcessId,
     string ProcessName,
     string SessionName,
     float PeakValue,
-    bool IsActive)
+    bool IsActive,
+    string ExecutablePath = "")
 {
     /// <summary>
     /// A short, log-friendly one-liner, e.g.
