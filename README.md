@@ -53,6 +53,13 @@ so you can see at a glance who you've silenced. The shared **System sounds**
 session isn't offered (it's not a single culprit app), and if an app has already
 gone quiet there's simply nothing to mute.
 
+**Also new (v0.2 backlog):** **Quiet-hours alerting.** Define a focus/sleep
+window and noise-snitch stops letting sounds slip by unnoticed during it: any app
+that makes noise inside your quiet hours gets **escalated** with a loud tray
+balloon ("🔊 Google Chrome just made a sound during your quiet hours") on top of
+the usual flash. The window is hand-editable `HH:mm` and **wraps past midnight**
+(e.g. `22:00`–`07:00`), so overnight focus Just Works. Off until you opt in.
+
 ## Planned MVP (v0.1)
 
 - Lives in the **system tray**, no main window.
@@ -77,6 +84,9 @@ On first launch noise-snitch writes a settings file you can hand-edit:
 | `ReleaseMs` | `1000` | Debounce: continuous quiet required before the same app can snitch again (ms). |
 | `PersistLog` | `false` | **M6:** when `true`, append every event to the on-disk JSONL log (durable history). Off = memory-only. |
 | `MaxLogBytes` | `5242880` | **M6:** rolling size cap (bytes) for the log before the oldest lines are rotated out (default 5 MiB). |
+| `QuietHoursEnabled` | `false` | **v0.2:** when `true`, escalate onsets that land inside the quiet window with a loud tray toast. |
+| `QuietHoursStart` | `"22:00"` | **v0.2:** inclusive quiet-window start, local wall-clock `HH:mm` (24-hour). |
+| `QuietHoursEnd` | `"07:00"` | **v0.2:** exclusive quiet-window end. If earlier than start, the window wraps past midnight. |
 
 Values are range-checked on load — a missing, empty, corrupt, or out-of-range
 file safely falls back to the defaults, so the app always starts. Changes take
@@ -129,6 +139,40 @@ Example line:
 
 Unparseable lines (a hand-edit typo or a torn final line) are skipped on read,
 not fatal.
+
+## Quiet-hours alerting (v0.2)
+
+A live flash is easy to miss when you're heads-down or asleep. **Quiet hours**
+turn any noise made inside a window you choose into a hard-to-miss **tray
+balloon** — so you find out immediately that something piped up during your focus
+time.
+
+Enable it in `settings.json`:
+
+```json
+{
+  "QuietHoursEnabled": true,
+  "QuietHoursStart": "22:00",
+  "QuietHoursEnd": "07:00"
+}
+```
+
+- Times are **local wall-clock** `HH:mm` (24-hour). Sloppy input like `9:5` is
+  accepted and canonicalized to `09:05`; anything unparseable falls back to the
+  default rather than silently disabling the feature.
+- The window is **`[start, end)`** — start inclusive, end exclusive.
+- When **end is earlier than start** the window **wraps past midnight**, so
+  `22:00`–`07:00` covers the whole night. (Want almost-all-day? Use distinct
+  endpoints like `00:00`–`23:59`; identical endpoints mean "no window".)
+- During quiet hours each onset still flashes the tray icon **and** raises a
+  balloon naming the culprit. Outside the window, behaviour is unchanged.
+
+Escalation is **off by default** and, like every setting, takes effect on the
+next launch.
+
+> Heads-up: an *allowlist* that lets specific apps (your music player) bypass the
+> alert is tracked separately under
+> [per-app rules](https://github.com/rwrife/noise-snitch/issues/9).
 
 ## Stack
 

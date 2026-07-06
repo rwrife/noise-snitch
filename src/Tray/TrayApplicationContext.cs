@@ -47,6 +47,13 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly SessionMuter _muter = new();
     private readonly HashSet<uint> _mutedPids = new();
 
+    // Issue #8 "Quiet-hours alerting": a pure schedule built from settings decides
+    // whether an onset falls inside the user's focus window. When it does, we
+    // escalate the onset with a loud tray balloon on top of the usual flash. Off
+    // unless the user opted in and picked a window. The tray owns the toast; the
+    // schedule owns the (unit-tested) "are we quiet right now?" decision.
+    private readonly QuietHoursSchedule _quietHours;
+
     public TrayApplicationContext()
     {
         // M5: load persisted settings (poll interval, # events, thresholds).
@@ -69,6 +76,16 @@ internal sealed class TrayApplicationContext : ApplicationContext
         if (_log is not null)
         {
             DebugLog.Write($"[log] persistence ON → {_log.FilePath ?? "<unavailable>"} (cap {_log.MaxBytes}B)");
+        }
+
+        // Issue #8: build the quiet-hours schedule from settings. Escalation is a
+        // no-op unless the user enabled it and configured a non-empty window.
+        _quietHours = QuietHoursSchedule.FromSettings(settings);
+        if (_quietHours.Enabled && !_quietHours.IsEmptyWindow)
+        {
+            DebugLog.Write(
+                $"[quiet] quiet-hours ON {settings.QuietHoursStart}–{settings.QuietHoursEnd} " +
+                "(local); onsets in-window escalate with a toast.");
         }
 
         var menu = new ContextMenuStrip();
@@ -161,12 +178,44 @@ internal sealed class TrayApplicationContext : ApplicationContext
         // startup, so run inline.
         if (_blotter.IsHandleCreated && _blotter.InvokeRequired)
         {
-            _blotter.BeginInvoke(new Action(FlashNow));
+            _blotter.BeginInvoke(new Action(() => OnNoiseAddedUi(e)));
         }
         else
         {
-            FlashNow();
+            OnNoiseAddedUi(e);
         }
+    }
+
+    /// <summary>
+    /// UI-thread reaction to a new onset: flash the tray icon and, when the onset
+    /// lands inside the configured quiet window (issue #8), escalate it with a
+    /// loud balloon. Split from the marshalling in <see cref="OnNoiseAdded"/> so
+    /// both effects share one hop onto the UI thread.
+    /// </summary>
+    private void OnNoiseAddedUi(NoiseEvent e)
+    {
+        FlashNow();
+        MaybeAlertQuietHours(e);
+    }
+
+    /// <summary>
+    /// Issue #8: if quiet hours are active <em>now</em> (local wall clock), raise
+    /// a tray balloon naming the culprit so a sound during the user's focus/sleep
+    /// window is impossible to miss. Uses <see cref="DateTime.Now"/> (local),
+    /// because a quiet window is a human-schedule concept. A no-op when the
+    /// feature is off or we're outside the window — the flash already happened.
+    /// </summary>
+    private void MaybeAlertQuietHours(NoiseEvent e)
+    {
+        if (!_quietHours.IsQuietAt(DateTime.Now))
+        {
+            return;
+        }
+
+        _notifyIcon.BalloonTipTitle = QuietHoursAlertFormatter.AlertTitle;
+        _notifyIcon.BalloonTipText = QuietHoursAlertFormatter.Body(e);
+        _notifyIcon.ShowBalloonTip(3000);
+        DebugLog.Write($"[quiet] escalated onset in-window: {e}");
     }
 
     /// <summary>Swaps to the lit icon and arms/extends the restore timer. UI thread only.</summary>
