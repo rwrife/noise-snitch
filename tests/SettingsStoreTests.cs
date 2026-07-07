@@ -50,6 +50,9 @@ public sealed class SettingsStoreTests : IDisposable
             EventsToKeep = 321,
             PeakThreshold = 0.2f,
             ReleaseMs = 750,
+            QuietHoursEnabled = true,
+            QuietHoursStart = "23:00",
+            QuietHoursEnd = "06:30",
         };
 
         Assert.True(store.Save(original));
@@ -60,6 +63,25 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.Equal(321, loaded.EventsToKeep);
         Assert.Equal(0.2f, loaded.PeakThreshold);
         Assert.Equal(750, loaded.ReleaseMs);
+        Assert.True(loaded.QuietHoursEnabled);
+        Assert.Equal("23:00", loaded.QuietHoursStart);
+        Assert.Equal("06:30", loaded.QuietHoursEnd);
+    }
+
+    [Fact]
+    public void Load_HandEdited_QuietHours_Parses_And_Canonicalizes()
+    {
+        // Issue #8: a user types a sloppy window into settings.json; it should load
+        // enabled with the window canonicalized to HH:mm.
+        File.WriteAllText(_path,
+            "{ \"QuietHoursEnabled\": true, \"QuietHoursStart\": \"9:5\", \"QuietHoursEnd\": \"17:0\" }");
+        var loaded = new SettingsStore(_path).Load();
+
+        Assert.True(loaded.QuietHoursEnabled);
+        Assert.Equal("09:05", loaded.QuietHoursStart); // Load normalizes
+        Assert.Equal("17:00", loaded.QuietHoursEnd);
+        Assert.Equal(9 * 60 + 5, loaded.QuietHoursStartMinute);
+        Assert.Equal(17 * 60, loaded.QuietHoursEndMinute);
     }
 
     [Fact]

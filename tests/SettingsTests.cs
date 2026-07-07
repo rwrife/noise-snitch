@@ -33,6 +33,55 @@ public sealed class SettingsTests
     }
 
     [Fact]
+    public void QuietHours_Defaults_Off_With_Sensible_Overnight_Window()
+    {
+        // Issue #8: escalation is opt-in, and the materialized defaults describe a
+        // realistic overnight window (22:00 -> 07:00) so a user flipping it on has
+        // a working example immediately.
+        var s = Settings.Defaults();
+        Assert.False(s.QuietHoursEnabled);
+        Assert.Equal(Settings.DefaultQuietHoursStart, s.QuietHoursStart);
+        Assert.Equal(Settings.DefaultQuietHoursEnd, s.QuietHoursEnd);
+        Assert.Equal(22 * 60, s.QuietHoursStartMinute);
+        Assert.Equal(7 * 60, s.QuietHoursEndMinute);
+    }
+
+    [Fact]
+    public void QuietHours_Minute_Accessors_Parse_The_Strings()
+    {
+        var s = new Settings { QuietHoursStart = "23:15", QuietHoursEnd = "06:45" };
+        Assert.Equal(23 * 60 + 15, s.QuietHoursStartMinute);
+        Assert.Equal(6 * 60 + 45, s.QuietHoursEndMinute);
+    }
+
+    [Fact]
+    public void QuietHours_Minute_Accessors_Fall_Back_On_Junk()
+    {
+        // Unparseable window strings resolve to the built-in defaults rather than
+        // throwing or reading as 00:00 (which would silently change behaviour).
+        var s = new Settings { QuietHoursStart = "nonsense", QuietHoursEnd = "" };
+        Assert.Equal(22 * 60, s.QuietHoursStartMinute); // default 22:00
+        Assert.Equal(7 * 60, s.QuietHoursEndMinute);    // default 07:00
+    }
+
+    [Fact]
+    public void Normalized_Canonicalizes_QuietHours_Window_Strings()
+    {
+        // A sloppy "9:5" becomes "09:05"; junk snaps back to the default so the
+        // persisted file always holds a well-formed HH:mm pair.
+        var s = new Settings { QuietHoursStart = "9:5", QuietHoursEnd = "garbage" }.Normalized();
+        Assert.Equal("09:05", s.QuietHoursStart);
+        Assert.Equal(Settings.DefaultQuietHoursEnd, s.QuietHoursEnd);
+    }
+
+    [Fact]
+    public void Normalized_Preserves_QuietHoursEnabled_Toggle()
+    {
+        Assert.True(new Settings { QuietHoursEnabled = true }.Normalized().QuietHoursEnabled);
+        Assert.False(new Settings { QuietHoursEnabled = false }.Normalized().QuietHoursEnabled);
+    }
+
+    [Fact]
     public void Normalized_Clamps_MaxLogBytes_Into_Range()
     {
         // Non-positive -> default; below floor -> floor; above ceiling -> ceiling.

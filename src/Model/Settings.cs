@@ -45,6 +45,22 @@ internal sealed class Settings
     /// </summary>
     public const long DefaultMaxLogBytes = 5L * 1024 * 1024;
 
+    /// <summary>
+    /// Default for quiet-hours alerting (issue #8): <b>off</b>. The window only
+    /// escalates onsets once the user opts in and picks their focus hours.
+    /// </summary>
+    public const bool DefaultQuietHoursEnabled = false;
+
+    /// <summary>
+    /// Default quiet-window start, <c>"22:00"</c> — a sensible "evening wind-down"
+    /// anchor so the materialized file shows a realistic overnight example the
+    /// moment the user flips <see cref="QuietHoursEnabled"/> on.
+    /// </summary>
+    public const string DefaultQuietHoursStart = "22:00";
+
+    /// <summary>Default quiet-window end, <c>"07:00"</c> (pairs with the 22:00 start).</summary>
+    public const string DefaultQuietHoursEnd = "07:00";
+
     // --- Clamp bounds. Generous but sane; the point is to stay usable, not to
     //     police taste. ---
 
@@ -87,6 +103,48 @@ internal sealed class Settings
     /// <summary>M6: size cap in bytes for the rolling on-disk log before it rotates.</summary>
     public long MaxLogBytes { get; set; } = DefaultMaxLogBytes;
 
+    /// <summary>
+    /// Issue #8: when <c>true</c>, onsets that occur inside the quiet window are
+    /// escalated (a loud tray toast) on top of the usual flash, so a sound during
+    /// your focus/sleep hours is hard to miss. Off by default.
+    /// </summary>
+    public bool QuietHoursEnabled { get; set; } = DefaultQuietHoursEnabled;
+
+    /// <summary>
+    /// Issue #8: inclusive start of the quiet window as local wall-clock
+    /// <c>"HH:mm"</c> (24-hour). Hand-editable; an unparseable value falls back to
+    /// <see cref="DefaultQuietHoursStart"/> during <see cref="Normalized"/>.
+    /// </summary>
+    public string QuietHoursStart { get; set; } = DefaultQuietHoursStart;
+
+    /// <summary>
+    /// Issue #8: exclusive end of the quiet window as local wall-clock
+    /// <c>"HH:mm"</c> (24-hour). A window whose end is <em>earlier</em> than its
+    /// start wraps past midnight (e.g. 22:00 → 07:00).
+    /// </summary>
+    public string QuietHoursEnd { get; set; } = DefaultQuietHoursEnd;
+
+    /// <summary>
+    /// The normalized inclusive window start as a minute-of-day (<c>[0, 1440)</c>),
+    /// parsed from <see cref="QuietHoursStart"/> with the default as fallback.
+    /// This is what the runtime schedule consumes; the string is just the
+    /// human-editable form. Not serialized (computed).
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int QuietHoursStartMinute =>
+        TimeOfDayText.ParseToMinuteOfDay(
+            QuietHoursStart, TimeOfDayText.ParseToMinuteOfDay(DefaultQuietHoursStart, 22 * 60));
+
+    /// <summary>
+    /// The normalized exclusive window end as a minute-of-day (<c>[0, 1440)</c>),
+    /// parsed from <see cref="QuietHoursEnd"/> with the default as fallback. Not
+    /// serialized (computed).
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int QuietHoursEndMinute =>
+        TimeOfDayText.ParseToMinuteOfDay(
+            QuietHoursEnd, TimeOfDayText.ParseToMinuteOfDay(DefaultQuietHoursEnd, 7 * 60));
+
     /// <summary>A fresh instance carrying the built-in defaults.</summary>
     public static Settings Defaults() => new();
 
@@ -103,6 +161,12 @@ internal sealed class Settings
         ReleaseMs = Clamp(ReleaseMs, MinReleaseMs, MaxReleaseMs, DefaultReleaseMs),
         PersistLog = PersistLog, // a bool needs no clamping
         MaxLogBytes = ClampLong(MaxLogBytes, MinMaxLogBytes, MaxMaxLogBytes, DefaultMaxLogBytes),
+        QuietHoursEnabled = QuietHoursEnabled, // a bool needs no clamping
+        // Canonicalize the window strings via the pure parser: a valid "9:5"
+        // becomes "09:05", and anything unparseable snaps back to the default so
+        // the persisted file always holds a well-formed "HH:mm".
+        QuietHoursStart = TimeOfDayText.FromMinuteOfDay(QuietHoursStartMinute),
+        QuietHoursEnd = TimeOfDayText.FromMinuteOfDay(QuietHoursEndMinute),
     };
 
     private static int Clamp(int value, int min, int max, int fallback)
