@@ -87,6 +87,7 @@ On first launch noise-snitch writes a settings file you can hand-edit:
 | `QuietHoursEnabled` | `false` | **v0.2:** when `true`, escalate onsets that land inside the quiet window with a loud tray toast. |
 | `QuietHoursStart` | `"22:00"` | **v0.2:** inclusive quiet-window start, local wall-clock `HH:mm` (24-hour). |
 | `QuietHoursEnd` | `"07:00"` | **v0.2:** exclusive quiet-window end. If earlier than start, the window wraps past midnight. |
+| `IgnoredApps` | `[]` | **v0.2:** process names to ignore. Onsets from these apps are dropped from the feed and blotter. Matched case-insensitively with a trailing `.exe` stripped, so `"Spotify"`, `"spotify"`, and `"spotify.exe"` all mean the same app. |
 
 Values are range-checked on load — a missing, empty, corrupt, or out-of-range
 file safely falls back to the defaults, so the app always starts. Changes take
@@ -170,9 +171,28 @@ Enable it in `settings.json`:
 Escalation is **off by default** and, like every setting, takes effect on the
 next launch.
 
-> Heads-up: an *allowlist* that lets specific apps (your music player) bypass the
-> alert is tracked separately under
-> [per-app rules](https://github.com/rwrife/noise-snitch/issues/9).
+## Per-app ignore list (v0.2)
+
+Some apps you simply don't care about — your music player, a game — and you'd
+rather they never snitch. Add their process names to `IgnoredApps` in
+`settings.json`:
+
+```json
+{
+  "IgnoredApps": ["spotify", "vlc"]
+}
+```
+
+- Onsets from an ignored app are **dropped before** they reach the blotter, the
+  flash, and the durable log — as if the app made no sound.
+- Matching is **case-insensitive** and a trailing `.exe` is stripped, so
+  `"Spotify"`, `"spotify"`, and `"spotify.exe"` all silence the same app.
+- Duplicates and blanks are cleaned up on load; the persisted list is
+  canonicalized (lower-cased, sorted).
+
+> A settings UI to add/remove ignored apps and an in-blotter "ignore this app"
+> action are the next slices; the filtering engine and file format land here.
+
 
 ## Stack
 

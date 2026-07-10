@@ -31,6 +31,7 @@ internal sealed class SessionWatcher : IDisposable
     private readonly EdgeDetector _detector;
     private readonly EventStore _events;
     private readonly NoiseLog? _log;
+    private readonly IgnoreList _ignore;
 
     private bool _started;
     private bool _disposed;
@@ -39,7 +40,8 @@ internal sealed class SessionWatcher : IDisposable
         TimeSpan? interval = null,
         EdgeDetectorOptions? detectorOptions = null,
         EventStore? events = null,
-        NoiseLog? log = null)
+        NoiseLog? log = null,
+        IgnoreList? ignore = null)
     {
         _timer.Interval = (int)(interval ?? DefaultInterval).TotalMilliseconds;
         _timer.Tick += OnTick;
@@ -48,6 +50,8 @@ internal sealed class SessionWatcher : IDisposable
         // M6: when a durable log is supplied (persistence enabled in settings),
         // each onset is also appended to disk. Null = in-memory only.
         _log = log;
+        // Issue #9: apps on the ignore list never reach the store or the log.
+        _ignore = ignore ?? IgnoreList.Empty;
     }
 
     /// <summary>The recent-events history the blotter (M4) renders.</summary>
@@ -77,6 +81,14 @@ internal sealed class SessionWatcher : IDisposable
         // sessions are how a stopped stream re-arms for its next onset.
         foreach (NoiseEvent ev in _detector.Process(snapshots))
         {
+            // Issue #9: suppress onsets from apps the user has chosen to ignore
+            // (e.g. their music player). The detector still ran, so the ignored
+            // session's edge state stays correct for when it's un-ignored later.
+            if (_ignore.IsIgnored(ev))
+            {
+                continue;
+            }
+
             _events.Add(ev);
             _log?.Append(ev); // M6: durable JSONL when persistence is on (no-op otherwise)
             DebugLog.Write($"[noise] {ev.TimestampUtc:O} {ev}");
