@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 
 namespace NoiseSnitch.Model;
 
@@ -60,6 +61,12 @@ internal sealed class Settings
 
     /// <summary>Default quiet-window end, <c>"07:00"</c> (pairs with the 22:00 start).</summary>
     public const string DefaultQuietHoursEnd = "07:00";
+
+    /// <summary>
+    /// Issue #9: the default per-app ignore list is <b>empty</b> — the snitch
+    /// watches every app until the user explicitly silences one.
+    /// </summary>
+    public static string[] DefaultIgnoredApps() => Array.Empty<string>();
 
     // --- Clamp bounds. Generous but sane; the point is to stay usable, not to
     //     police taste. ---
@@ -145,6 +152,17 @@ internal sealed class Settings
         TimeOfDayText.ParseToMinuteOfDay(
             QuietHoursEnd, TimeOfDayText.ParseToMinuteOfDay(DefaultQuietHoursEnd, 7 * 60));
 
+    /// <summary>
+    /// Issue #9: process names the user has chosen to ignore. Events from these
+    /// apps are filtered out of the feed and blotter (see
+    /// <see cref="NoiseSnitch.AudioWatcher.IgnoreList"/>). Rules are matched
+    /// case-insensitively with a trailing <c>.exe</c> stripped, so <c>Spotify</c>,
+    /// <c>spotify</c>, and <c>spotify.exe</c> all mean the same app. A missing or
+    /// <c>null</c> value in the file deserializes to the empty list (nothing
+    /// ignored).
+    /// </summary>
+    public string[] IgnoredApps { get; set; } = DefaultIgnoredApps();
+
     /// <summary>A fresh instance carrying the built-in defaults.</summary>
     public static Settings Defaults() => new();
 
@@ -167,6 +185,10 @@ internal sealed class Settings
         // the persisted file always holds a well-formed "HH:mm".
         QuietHoursStart = TimeOfDayText.FromMinuteOfDay(QuietHoursStartMinute),
         QuietHoursEnd = TimeOfDayText.FromMinuteOfDay(QuietHoursEndMinute),
+        // Canonicalize the ignore list via the same rules the runtime uses:
+        // trim, drop a trailing ".exe", lower-case, and de-dupe blanks/repeats so
+        // the persisted file holds a clean, stable set.
+        IgnoredApps = new NoiseSnitch.AudioWatcher.IgnoreList(IgnoredApps).Rules.ToArray(),
     };
 
     private static int Clamp(int value, int min, int max, int fallback)

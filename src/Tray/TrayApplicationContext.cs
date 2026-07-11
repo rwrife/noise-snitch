@@ -127,7 +127,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
                 settings.PeakThreshold,
                 TimeSpan.FromMilliseconds(settings.ReleaseMs)),
             events: new EventStore(settings.EventsToKeep),
-            log: _log);
+            log: _log,
+            // Issue #9: apps the user has silenced never reach the blotter or log.
+            ignore: new IgnoreList(settings.IgnoredApps));
 
         // M4: the blotter flyout reads the watcher's event store. Created up front
         // (hidden) so opening it from the tray is instant and it can subscribe to

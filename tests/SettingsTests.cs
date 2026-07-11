@@ -99,6 +99,24 @@ public sealed class SettingsTests
     }
 
     [Fact]
+    public void IgnoredApps_Defaults_Empty()
+    {
+        Assert.Empty(Settings.Defaults().IgnoredApps);
+    }
+
+    [Fact]
+    public void Normalized_Canonicalizes_And_Dedupes_IgnoredApps()
+    {
+        var s = new Settings
+        {
+            IgnoredApps = new[] { "Spotify.exe", "spotify", "  ", "Chrome", "chrome" },
+        }.Normalized();
+
+        // Lower-cased, .exe stripped, blanks dropped, duplicates collapsed, sorted.
+        Assert.Equal(new[] { "chrome", "spotify" }, s.IgnoredApps);
+    }
+
+    [Fact]
     public void Normalized_Passes_Through_Valid_Values()
     {
         var s = new Settings
