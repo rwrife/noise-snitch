@@ -90,6 +90,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         var menu = new ContextMenuStrip();
         menu.Items.Add("Show blotter", null, OnShowBlotter);
+        // Issue #22: aggregate "who keeps doing this?" view of today's noise.
+        menu.Items.Add("Leaderboard", null, OnShowLeaderboard);
         // M6: copy the last hour of noise to the clipboard for easy reporting.
         // Shown only when persistence is on (there's nothing durable to export
         // otherwise).
@@ -360,6 +362,22 @@ internal sealed class TrayApplicationContext : ApplicationContext
             ? $"Watching audio sessions. Log: {path}"
             : "Watching for which app just made that sound.";
         _notifyIcon.ShowBalloonTip(3000);
+    }
+
+    /// <summary>
+    /// Issue #22: rank today's apps by number of noise events and show them in a
+    /// simple dialog. Ranking/formatting are pure (see <see cref="Leaderboard"/>
+    /// and <see cref="LeaderboardFormatter"/>); this only sources the events and
+    /// puts the rendered text on screen.
+    /// </summary>
+    private void OnShowLeaderboard(object? sender, EventArgs e)
+    {
+        var rows = Leaderboard.ForDay(_watcher.Events.Recent(), DateTime.UtcNow);
+        MessageBox.Show(
+            LeaderboardFormatter.Render(rows),
+            "Noise leaderboard — today",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Information);
     }
 
     private void OnQuit(object? sender, EventArgs e) => ExitThread();

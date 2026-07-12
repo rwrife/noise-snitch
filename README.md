@@ -194,6 +194,35 @@ rather they never snitch. Add their process names to `IgnoredApps` in
 > action are the next slices; the filtering engine and file format land here.
 
 
+## Noise leaderboard (v0.2)
+
+The blotter answers *"what just made that sound?"* one event at a time. The
+**leaderboard** answers *"who keeps doing this?"* — right-click the tray icon →
+**Leaderboard** for an aggregate view of today's noisiest apps, ranked by how
+many noise events each produced:
+
+```
+1. 🥇 Slack — 38
+2. 🥈 Google Chrome — 22
+3. 🥉 Zoom — 9
+4. Firefox — 4
+```
+
+- **Window:** today (local calendar day) by default.
+- **Ordering:** event count descending, then app name ascending for ties —
+  fully deterministic.
+- **Grouping:** counts are per app, not per pid: `chrome`, `chrome.exe`, and
+  `Chrome` all fold into one row, and the shared **System sounds** session is
+  its own bucket. Names are shown via the same friendly-name mapping as the
+  blotter, with 🥇🥈🥉 medals for the top three.
+- When nothing's made a peep yet, you get a friendly empty state instead of an
+  empty box.
+
+Aggregation and rendering are pure and WinForms-free (`Leaderboard`,
+`LeaderboardFormatter`), so ranking, tie-breaking, and the empty state are all
+unit-tested without any live audio.
+
+
 ## Stack
 
 C# / .NET 8 · [NAudio](https://github.com/naudio/NAudio) (WASAPI / Core Audio sessions) · WinForms `NotifyIcon`. Boring, fast, Windows-native — ships as a single `.exe`.
