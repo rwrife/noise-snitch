@@ -222,6 +222,30 @@ Aggregation and rendering are pure and WinForms-free (`Leaderboard`,
 `LeaderboardFormatter`), so ranking, tie-breaking, and the empty state are all
 unit-tested without any live audio.
 
+## Daily digest (v0.2)
+
+Where the leaderboard ranks apps, the **digest** gives you the one-line
+tl;dr of the day. Right-click the tray icon → **Today's digest** for a
+glanceable summary of total activity and each app's share:
+
+```
+214 sounds today — Slack 38%, Google Chrome 22%, Zoom 15%, Firefox 9%
+```
+
+- **Window:** today (local calendar day) by default, same as the leaderboard.
+- **Breakdown:** total event count plus per-app counts and percentage shares,
+  sorted by count descending. Percentages are rounded to the nearest whole and
+  need not sum to exactly 100.
+- **Grouping:** identical app-identity bucketing to the leaderboard (`chrome`,
+  `chrome.exe`, and `Chrome` fold together; **System sounds** is its own row),
+  since the digest reuses the same aggregation.
+- When nothing's happened yet, you get a friendly empty state:
+  `No noise snitched yet today 🤫`.
+
+Aggregation and rendering are pure and WinForms-free (`DigestBuilder`,
+`DigestFormatter`), so the aggregation math, sorting, percentage rounding, and
+empty case are all unit-tested without any live audio.
+
 
 ## Stack
 
