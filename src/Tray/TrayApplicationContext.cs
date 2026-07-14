@@ -92,6 +92,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
         menu.Items.Add("Show blotter", null, OnShowBlotter);
         // Issue #22: aggregate "who keeps doing this?" view of today's noise.
         menu.Items.Add("Leaderboard", null, OnShowLeaderboard);
+        // Issue #23: glanceable summary of today's noise activity.
+        menu.Items.Add("Today's digest", null, OnShowDigest);
         // M6: copy the last hour of noise to the clipboard for easy reporting.
         // Shown only when persistence is on (there's nothing durable to export
         // otherwise).
@@ -376,6 +378,22 @@ internal sealed class TrayApplicationContext : ApplicationContext
         MessageBox.Show(
             LeaderboardFormatter.Render(rows),
             "Noise leaderboard — today",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Information);
+    }
+
+    /// <summary>
+    /// Issue #23: summarize today's noise (total, top offenders, percentage
+    /// shares) and show it in a simple dialog. Aggregation/formatting are pure
+    /// (see <see cref="DigestBuilder"/> and <see cref="DigestFormatter"/>); this
+    /// only sources the events and puts the rendered text on screen.
+    /// </summary>
+    private void OnShowDigest(object? sender, EventArgs e)
+    {
+        var digest = DigestBuilder.ForDay(_watcher.Events.Recent(), DateTime.UtcNow);
+        MessageBox.Show(
+            DigestFormatter.Render(digest),
+            "Today's digest",
             MessageBoxButtons.OK,
             MessageBoxIcon.Information);
     }
