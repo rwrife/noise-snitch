@@ -68,6 +68,14 @@ internal sealed class Settings
     /// </summary>
     public static string[] DefaultIgnoredApps() => Array.Empty<string>();
 
+    /// <summary>
+    /// Issue #24: default snitch personality pack key. Mirrors
+    /// <see cref="NoiseSnitch.Personality.PersonalityCatalog.DefaultKey"/> so an
+    /// un-edited file uses the courteous "butler" voice.
+    /// </summary>
+    public const string DefaultPersonalityPack =
+        NoiseSnitch.Personality.PersonalityCatalog.DefaultKey;
+
     // --- Clamp bounds. Generous but sane; the point is to stay usable, not to
     //     police taste. ---
 
@@ -163,6 +171,14 @@ internal sealed class Settings
     /// </summary>
     public string[] IgnoredApps { get; set; } = DefaultIgnoredApps();
 
+    /// <summary>
+    /// Issue #24: key of the selected personality pack (the snitch's "voice" across
+    /// the tray tooltip, blotter empty-state, and event phrasing). Matched
+    /// case-insensitively; an unknown or missing value falls back to
+    /// <see cref="DefaultPersonalityPack"/> during <see cref="Normalized"/>.
+    /// </summary>
+    public string PersonalityPack { get; set; } = DefaultPersonalityPack;
+
     /// <summary>A fresh instance carrying the built-in defaults.</summary>
     public static Settings Defaults() => new();
 
@@ -189,6 +205,11 @@ internal sealed class Settings
         // trim, drop a trailing ".exe", lower-case, and de-dupe blanks/repeats so
         // the persisted file holds a clean, stable set.
         IgnoredApps = new NoiseSnitch.AudioWatcher.IgnoreList(IgnoredApps).Rules.ToArray(),
+        // Canonicalize the personality key: normalize case/whitespace and snap an
+        // unknown pack back to the default so the persisted file always names a
+        // real voice the runtime can resolve.
+        PersonalityPack = NoiseSnitch.Personality.PersonalityCatalog
+            .Resolve(PersonalityPack).Key,
     };
 
     private static int Clamp(int value, int min, int max, int fallback)

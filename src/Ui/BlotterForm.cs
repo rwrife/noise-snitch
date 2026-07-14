@@ -57,6 +57,31 @@ internal sealed class BlotterForm : Form
     // The snapshot currently rendered. Held so owner-draw can index into it.
     private IReadOnlyList<NoiseEvent> _current = Array.Empty<NoiseEvent>();
 
+    // Issue #24: the empty-state wording comes from the active personality pack.
+    // Defaults to the neutral formatter constant so the form works stand-alone
+    // (and in tests) without a personality wired up; the tray overrides it.
+    private string _emptyStateText = BlotterFormatter.EmptyState;
+
+    /// <summary>
+    /// Issue #24: the message drawn when no events have been recorded yet. Set by
+    /// the tray from the selected personality pack; a null/blank value snaps back
+    /// to the default wording. Repaints if the form is visible.
+    /// </summary>
+    public string EmptyStateText
+    {
+        get => _emptyStateText;
+        set
+        {
+            _emptyStateText = string.IsNullOrWhiteSpace(value)
+                ? BlotterFormatter.EmptyState
+                : value;
+            if (IsHandleCreated)
+            {
+                _list.Invalidate();
+            }
+        }
+    }
+
     /// <param name="events">The recent-events store this flyout renders.</param>
     /// <param name="isMuted">
     /// Returns whether the culprit behind an event is currently muted, so its row
@@ -253,7 +278,7 @@ internal sealed class BlotterForm : Form
         if (_current.Count == 0)
         {
             TextRenderer.DrawText(
-                e.Graphics, BlotterFormatter.EmptyState, _list.Font, b,
+                e.Graphics, EmptyStateText, _list.Font, b,
                 SecondaryText,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
             return;

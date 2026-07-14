@@ -7,6 +7,7 @@ using NoiseSnitch.Config;
 using NoiseSnitch.Diagnostics;
 using NoiseSnitch.Model;
 using NoiseSnitch.Persistence;
+using NoiseSnitch.Personality;
 using NoiseSnitch.Ui;
 
 namespace NoiseSnitch.Tray;
@@ -54,6 +55,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
     // schedule owns the (unit-tested) "are we quiet right now?" decision.
     private readonly QuietHoursSchedule _quietHours;
 
+    // Issue #24: the snitch's current "voice". Loaded from settings, resolvable
+    // even from a corrupt/unknown key (falls back to the default pack), and
+    // switchable at runtime from the tray's Personality submenu without a restart.
+    private SnitchPersonality _personality;
+
     public TrayApplicationContext()
     {
         // M5: load persisted settings (poll interval, # events, thresholds).
@@ -90,6 +96,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         var menu = new ContextMenuStrip();
         menu.Items.Add("Show blotter", null, OnShowBlotter);
+        // Issue #24: resolve the persisted personality pack (fallback-safe).
+        _personality = PersonalityCatalog.Resolve(settings.PersonalityPack);
+        DebugLog.Write($"[personality] active pack={_personality.Key} ({_personality.DisplayName})");
         // Issue #22: aggregate "who keeps doing this?" view of today's noise.
         menu.Items.Add("Leaderboard", null, OnShowLeaderboard);
         // Issue #23: glanceable summary of today's noise activity.
@@ -104,12 +113,15 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         menu.Items.Add("About", null, OnAbout);
         menu.Items.Add(new ToolStripSeparator());
+        // Issue #24: pick the snitch's voice; applies live (no restart).
+        menu.Items.Add(BuildPersonalityMenu());
+        menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Quit", null, OnQuit);
 
         _notifyIcon = new NotifyIcon
         {
             // Tooltip text is capped at 63 chars by the Win32 shell; ours fits.
-            Text = Tooltip,
+            Text = TrayTooltip(),
             Icon = _restingIcon,
             ContextMenuStrip = menu,
             Visible = true,
@@ -143,6 +155,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _watcher.Events,
             isMuted: IsCulpritMuted,
             toggleMute: ToggleCulpritMute);
+        // Issue #24: seed the blotter's empty-state from the active pack.
+        _blotter.EmptyStateText = _personality.BlotterEmptyState;
 
         // M5: flash the tray icon whenever an onset is recorded. Subscribing to
         // the store (rather than the watcher) means every event that reaches the
@@ -355,6 +369,69 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _notifyIcon.ShowBalloonTip(2000);
 
         return outcome;
+    }
+
+    // Issue #24: the tray tooltip comes from the active personality pack, but is
+    // capped to the Win32 shell's 63-char NotifyIcon.Text limit so a long pack
+    // string can't get truncated mid-emoji or rejected.
+    private string TrayTooltip()
+    {
+        string t = _personality.TrayTooltip;
+        return t.Length <= 63 ? t : t.Substring(0, 63);
+    }
+
+    // Issue #24: a checkable submenu listing every built-in pack. Selecting one
+    // switches the snitch's voice live and persists the choice.
+    private ToolStripMenuItem BuildPersonalityMenu()
+    {
+        var root = new ToolStripMenuItem("Personality");
+        foreach (SnitchPersonality pack in PersonalityCatalog.All)
+        {
+            var item = new ToolStripMenuItem(pack.DisplayName)
+            {
+                Tag = pack.Key,
+                Checked = pack.Key == _personality.Key,
+                CheckOnClick = false,
+            };
+            item.Click += OnPersonalitySelected;
+            root.DropDownItems.Add(item);
+        }
+
+        return root;
+    }
+
+    // Issue #24: apply a picked pack without a restart — retint the checkmarks,
+    // refresh the tray tooltip and blotter empty-state, and persist the key.
+    private void OnPersonalitySelected(object? sender, EventArgs e)
+    {
+        if (sender is not ToolStripMenuItem clicked || clicked.Tag is not string key)
+        {
+            return;
+        }
+
+        _personality = PersonalityCatalog.Resolve(key);
+
+        // Retick sibling items so exactly the active pack shows a check.
+        if (clicked.OwnerItem is ToolStripMenuItem root)
+        {
+            foreach (ToolStripItem sibling in root.DropDownItems)
+            {
+                if (sibling is ToolStripMenuItem mi && mi.Tag is string k)
+                {
+                    mi.Checked = k == _personality.Key;
+                }
+            }
+        }
+
+        // Apply live.
+        _notifyIcon.Text = TrayTooltip();
+        _blotter.EmptyStateText = _personality.BlotterEmptyState;
+
+        // Persist the choice (load-modify-save so we don't clobber other fields).
+        Settings current = _settingsStore.Load();
+        current.PersonalityPack = _personality.Key;
+        _settingsStore.Save(current);
+        DebugLog.Write($"[personality] switched to {_personality.Key} ({_personality.DisplayName})");
     }
 
     private void OnAbout(object? sender, EventArgs e)

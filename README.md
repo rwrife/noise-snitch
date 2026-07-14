@@ -88,6 +88,7 @@ On first launch noise-snitch writes a settings file you can hand-edit:
 | `QuietHoursStart` | `"22:00"` | **v0.2:** inclusive quiet-window start, local wall-clock `HH:mm` (24-hour). |
 | `QuietHoursEnd` | `"07:00"` | **v0.2:** exclusive quiet-window end. If earlier than start, the window wraps past midnight. |
 | `IgnoredApps` | `[]` | **v0.2:** process names to ignore. Onsets from these apps are dropped from the feed and blotter. Matched case-insensitively with a trailing `.exe` stripped, so `"Spotify"`, `"spotify"`, and `"spotify.exe"` all mean the same app. |
+| `PersonalityPack` | `"butler"` | **v0.2:** the snitch's voice across the tray tooltip, blotter empty-state, and event phrasing. Matched case-insensitively; an unknown value falls back to `"butler"`. See [Personality packs](#personality-packs-v02). |
 
 Values are range-checked on load — a missing, empty, corrupt, or out-of-range
 file safely falls back to the defaults, so the app always starts. Changes take
@@ -189,6 +190,31 @@ rather they never snitch. Add their process names to `IgnoredApps` in
   `"Spotify"`, `"spotify"`, and `"spotify.exe"` all silence the same app.
 - Duplicates and blanks are cleaned up on load; the persisted list is
   canonicalized (lower-cased, sorted).
+
+## Personality packs (v0.2)
+
+The snitch has a **voice**, and you can change it. A personality pack swaps the
+wording of the tray tooltip, the blotter's empty-state, and how a caught app is
+phrased — pick one from the tray's **Personality** submenu and it applies
+immediately (no restart). Your choice is saved to `PersonalityPack` in
+`settings.json`.
+
+| Pack (`key`) | Vibe | Empty-state example |
+| --- | --- | --- |
+| **Polite Butler** (`butler`, default) | Courteous, understated. | `All quiet, sir. Nothing to report… for now. 🤫` |
+| **Tattletale Gremlin** (`gremlin`) | Gleeful, over-the-top tattling. | `Nobody's made a peep yet. BORING. 😴` |
+| **Deadpan** (`deadpan`) | Flat, factual, zero enthusiasm. | `No events.` |
+
+Set it directly if you prefer:
+
+```jsonc
+{
+  "PersonalityPack": "gremlin"
+}
+```
+
+An unknown or missing pack name safely falls back to **Polite Butler**.
+
 
 > A settings UI to add/remove ignored apps and an in-blotter "ignore this app"
 > action are the next slices; the filtering engine and file format land here.
