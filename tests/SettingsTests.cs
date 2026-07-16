@@ -105,6 +105,34 @@ public sealed class SettingsTests
     }
 
     [Fact]
+    public void Hotkey_Defaults_On_With_CtrlAltN()
+    {
+        var d = Settings.Defaults();
+        Assert.True(d.HotkeyEnabled);
+        Assert.Equal("Ctrl+Alt+N", d.HotkeyCombo);
+        Assert.Equal("Ctrl+Alt+N", d.Hotkey.ToString());
+    }
+
+    [Fact]
+    public void Normalized_Preserves_HotkeyEnabled_Toggle()
+    {
+        Assert.True(new Settings { HotkeyEnabled = true }.Normalized().HotkeyEnabled);
+        Assert.False(new Settings { HotkeyEnabled = false }.Normalized().HotkeyEnabled);
+    }
+
+    [Fact]
+    public void Normalized_Canonicalizes_Hotkey_Combo()
+    {
+        // Aliases/case/spacing normalize; junk snaps back to the default.
+        Assert.Equal("Ctrl+Alt+N",
+            new Settings { HotkeyCombo = "  control + alt + n " }.Normalized().HotkeyCombo);
+        Assert.Equal("Ctrl+Alt+N",
+            new Settings { HotkeyCombo = "nonsense" }.Normalized().HotkeyCombo);
+        Assert.Equal("Ctrl+Shift+Win+F5",
+            new Settings { HotkeyCombo = "win+shift+ctrl+f5" }.Normalized().HotkeyCombo);
+    }
+
+    [Fact]
     public void Normalized_Canonicalizes_And_Dedupes_IgnoredApps()
     {
         var s = new Settings

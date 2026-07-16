@@ -76,6 +76,19 @@ internal sealed class Settings
     public const string DefaultPersonalityPack =
         NoiseSnitch.Personality.PersonalityCatalog.DefaultKey;
 
+    /// <summary>
+    /// Issue #28: global-hotkey feature is <b>on</b> by default — popping the
+    /// blotter from anywhere is the whole point, and it degrades gracefully if the
+    /// combo is already taken (logged, no crash).
+    /// </summary>
+    public const bool DefaultHotkeyEnabled = true;
+
+    /// <summary>
+    /// Issue #28: default global hotkey to pop the blotter, mirroring
+    /// <see cref="NoiseSnitch.Model.Hotkey.DefaultText"/> (<c>Ctrl+Alt+N</c>).
+    /// </summary>
+    public const string DefaultHotkeyCombo = Hotkey.DefaultText;
+
     // --- Clamp bounds. Generous but sane; the point is to stay usable, not to
     //     police taste. ---
 
@@ -179,6 +192,30 @@ internal sealed class Settings
     /// </summary>
     public string PersonalityPack { get; set; } = DefaultPersonalityPack;
 
+    /// <summary>
+    /// Issue #28: when <c>true</c>, a system-wide hotkey (see
+    /// <see cref="HotkeyCombo"/>) toggles the blotter flyout from anywhere. On by
+    /// default; a registration clash just logs and disables the shortcut for the
+    /// session without affecting anything else.
+    /// </summary>
+    public bool HotkeyEnabled { get; set; } = DefaultHotkeyEnabled;
+
+    /// <summary>
+    /// Issue #28: the global-hotkey combo as a hand-editable <c>+</c>-separated
+    /// string (e.g. <c>"Ctrl+Alt+N"</c>). Parsed/canonicalized via the pure
+    /// <see cref="Hotkey"/> helper; an unparseable value snaps back to
+    /// <see cref="DefaultHotkeyCombo"/> during <see cref="Normalized"/>.
+    /// </summary>
+    public string HotkeyCombo { get; set; } = DefaultHotkeyCombo;
+
+    /// <summary>
+    /// The parsed global hotkey, resolved from <see cref="HotkeyCombo"/> with the
+    /// built-in default as fallback. Not serialized (computed); the string is the
+    /// human-editable form the runtime registration consumes.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Hotkey Hotkey => NoiseSnitch.Model.Hotkey.Parse(HotkeyCombo);
+
     /// <summary>A fresh instance carrying the built-in defaults.</summary>
     public static Settings Defaults() => new();
 
@@ -210,6 +247,11 @@ internal sealed class Settings
         // real voice the runtime can resolve.
         PersonalityPack = NoiseSnitch.Personality.PersonalityCatalog
             .Resolve(PersonalityPack).Key,
+        HotkeyEnabled = HotkeyEnabled, // a bool needs no clamping
+        // Canonicalize the combo string via the pure parser: aliases/case/spacing
+        // are normalized and anything unparseable snaps back to the default so the
+        // persisted file always holds a well-formed, registerable combo.
+        HotkeyCombo = NoiseSnitch.Model.Hotkey.Parse(HotkeyCombo).ToString(),
     };
 
     private static int Clamp(int value, int min, int max, int fallback)

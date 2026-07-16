@@ -60,6 +60,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
     // switchable at runtime from the tray's Personality submenu without a restart.
     private SnitchPersonality _personality;
 
+    // Issue #28: system-wide hotkey to pop the blotter. A hidden native window
+    // receives WM_HOTKEY and raises Pressed; we toggle the flyout near the cursor.
+    // Null when the feature is disabled in settings or registration failed.
+    private readonly HotkeyWindow? _hotkey;
+
     public TrayApplicationContext()
     {
         // M5: load persisted settings (poll interval, # events, thresholds).
@@ -170,7 +175,31 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _notifyIcon.DoubleClick += (_, _) => ShowBlotterAtCursor();
 
         _watcher.Start();
+
+        // Issue #28: register the global hotkey (default Ctrl+Alt+N) to pop the
+        // blotter from anywhere. Opt-out via settings; a clash is logged and the
+        // shortcut is simply unavailable this session (no crash).
+        if (settings.HotkeyEnabled)
+        {
+            _hotkey = new HotkeyWindow();
+            _hotkey.Pressed += OnHotkeyPressed;
+            if (_hotkey.TryRegister(settings.Hotkey))
+            {
+                DebugLog.Write($"[hotkey] blotter shortcut active: {settings.HotkeyCombo}");
+            }
+            else
+            {
+                // Keep the window around (harmless) but the shortcut is inert; the
+                // failure is already logged in TryRegister.
+            }
+        }
     }
+
+    /// <summary>
+    /// Issue #28: the global hotkey fired — toggle the blotter near the cursor.
+    /// Raised on the UI thread by the hidden hotkey window's message loop.
+    /// </summary>
+    private void OnHotkeyPressed(object? sender, EventArgs e) => _blotter.ToggleNear(Cursor.Position);
 
     private void OnIconMouseClick(object? sender, MouseEventArgs e)
     {
@@ -483,6 +512,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
         // the tray as a ghost until the user hovers over it.
         _watcher.Events.Added -= OnNoiseAdded;
         _flashTimer.Stop();
+        if (_hotkey is not null)
+        {
+            _hotkey.Pressed -= OnHotkeyPressed;
+            _hotkey.Dispose();
+        }
         _watcher.Dispose();
         _muter.Dispose();
         _blotter.HideFlyout();
@@ -496,6 +530,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             _watcher.Events.Added -= OnNoiseAdded;
             _flashTimer.Dispose();
+            if (_hotkey is not null)
+            {
+                _hotkey.Pressed -= OnHotkeyPressed;
+                _hotkey.Dispose();
+            }
             _watcher.Dispose();
             _muter.Dispose();
             _blotter.Dispose();
