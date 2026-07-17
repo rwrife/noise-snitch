@@ -91,6 +91,7 @@ On first launch noise-snitch writes a settings file you can hand-edit:
 | `PersonalityPack` | `"butler"` | **v0.2:** the snitch's voice across the tray tooltip, blotter empty-state, and event phrasing. Matched case-insensitively; an unknown value falls back to `"butler"`. See [Personality packs](#personality-packs-v02). |
 | `HotkeyEnabled` | `true` | **v0.2:** when `true`, a system-wide hotkey (see `HotkeyCombo`) toggles the blotter flyout from anywhere. See [Global hotkey](#global-hotkey-v02). |
 | `HotkeyCombo` | `"Ctrl+Alt+N"` | **v0.2:** the global hotkey combo. `+`-separated modifiers (`Ctrl`/`Alt`/`Shift`/`Win`, aliases like `Control`/`Cmd` accepted) plus one main key (`A`–`Z`, `0`–`9`, `F1`–`F24`, or `Space`/`Enter`/`Esc`/`Home`/`End`/`Insert`/`Delete`). Case- and spacing-insensitive; an unparseable value falls back to `Ctrl+Alt+N`. Needs at least one modifier. |
+| `NotificationMode` | `"Flash"` | **v0.2:** how a caught onset is surfaced — `"Flash"` (tray-icon flash, default), `"Toast"` (a per-event Windows toast phrased by the active pack), or `"Both"`. Matched by name, case-insensitively; an unknown value falls back to `"Flash"`. See [Notification mode](#notification-mode-v02). |
 
 Values are range-checked on load — a missing, empty, corrupt, or out-of-range
 file safely falls back to the defaults, so the app always starts. Changes take
@@ -173,6 +174,35 @@ Enable it in `settings.json`:
 
 Escalation is **off by default** and, like every setting, takes effect on the
 next launch.
+
+## Notification mode (v0.2)
+
+By default the snitch is quiet-quiet: a caught onset just **flashes the tray
+icon**. If you'd rather be told *who* made the sound without opening the blotter,
+switch to **toast** mode from the tray's **Notifications** submenu (applies
+immediately, no restart):
+
+- **Flash tray icon** — the M5 default; brief icon flash only.
+- **Toast notification** — a per-event Windows toast instead of the flash, e.g.
+  *"I regret to inform you that Google Chrome broke the silence. (now)"*. The
+  wording comes from the active [personality pack](#personality-packs-v02), so it
+  matches the snitch's voice.
+- **Flash + toast** — both.
+
+Toasts ride the same already-filtered onset stream as everything else, so the
+**debounce**, **ignore list**, and **quiet-hours** rules all still apply — an app
+you've ignored won't toast, and a continuous stream yields one toast per onset,
+not one per tick. During quiet hours the louder [quiet-hours
+alert](#quiet-hours-alerting-v02) takes precedence over the ordinary toast for
+that event.
+
+Your choice is saved to `NotificationMode` in `settings.json`:
+
+```jsonc
+{
+  "NotificationMode": "Both"
+}
+```
 
 ## Per-app ignore list (v0.2)
 

@@ -53,6 +53,7 @@ public sealed class SettingsStoreTests : IDisposable
             QuietHoursEnabled = true,
             QuietHoursStart = "23:00",
             QuietHoursEnd = "06:30",
+            NotificationMode = NotificationMode.Both,
         };
 
         Assert.True(store.Save(original));
@@ -66,6 +67,33 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.True(loaded.QuietHoursEnabled);
         Assert.Equal("23:00", loaded.QuietHoursStart);
         Assert.Equal("06:30", loaded.QuietHoursEnd);
+    }
+
+    [Fact]
+    public void NotificationMode_Round_Trips_By_Name()
+    {
+        // Issue #29: the mode persists (as a readable name) and reloads intact.
+        var store = new SettingsStore(_path);
+        Assert.True(store.Save(new Settings { NotificationMode = NotificationMode.Both }));
+        Assert.Contains("\"Both\"", File.ReadAllText(_path));
+        Assert.Equal(NotificationMode.Both, store.Load().NotificationMode);
+    }
+
+    [Fact]
+    public void Load_HandEdited_NotificationMode_Name_Is_Case_Insensitive()
+    {
+        // Issue #29: a user typing "toast" (lower-case) still resolves.
+        File.WriteAllText(_path, "{ \"NotificationMode\": \"toast\" }");
+        Assert.Equal(NotificationMode.Toast, new SettingsStore(_path).Load().NotificationMode);
+    }
+
+    [Fact]
+    public void Load_HandEdited_Unknown_NotificationMode_Falls_Back_To_Default()
+    {
+        // A bogus numeric value must not reach the runtime as an undefined enum.
+        File.WriteAllText(_path, "{ \"NotificationMode\": 99 }");
+        Assert.Equal(Settings.DefaultNotificationMode,
+            new SettingsStore(_path).Load().NotificationMode);
     }
 
     [Fact]
