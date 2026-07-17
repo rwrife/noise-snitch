@@ -89,6 +89,13 @@ internal sealed class Settings
     /// </summary>
     public const string DefaultHotkeyCombo = Hotkey.DefaultText;
 
+    /// <summary>
+    /// Issue #29: default notification mode. <see cref="NotificationMode.Flash"/>
+    /// preserves the M5 behaviour (tray-icon flash only) until the user opts into
+    /// toasts, so existing users see no change.
+    /// </summary>
+    public const NotificationMode DefaultNotificationMode = NotificationMode.Flash;
+
     // --- Clamp bounds. Generous but sane; the point is to stay usable, not to
     //     police taste. ---
 
@@ -209,6 +216,18 @@ internal sealed class Settings
     public string HotkeyCombo { get; set; } = DefaultHotkeyCombo;
 
     /// <summary>
+    /// Issue #29: how caught onsets are surfaced — <see cref="NotificationMode.Flash"/>
+    /// (tray-icon flash, the default), <see cref="NotificationMode.Toast"/> (a
+    /// per-event Windows toast phrased by the active personality pack), or
+    /// <see cref="NotificationMode.Both"/>. Persisted by name; an unknown value in
+    /// a hand-edited file snaps back to <see cref="DefaultNotificationMode"/> during
+    /// <see cref="Normalized"/>. Toasts respect the same debounce/ignore-list/
+    /// quiet-hours filtering as everything else, because they fire off the same
+    /// already-filtered onset stream.
+    /// </summary>
+    public NotificationMode NotificationMode { get; set; } = DefaultNotificationMode;
+
+    /// <summary>
     /// The parsed global hotkey, resolved from <see cref="HotkeyCombo"/> with the
     /// built-in default as fallback. Not serialized (computed); the string is the
     /// human-editable form the runtime registration consumes.
@@ -252,6 +271,11 @@ internal sealed class Settings
         // are normalized and anything unparseable snaps back to the default so the
         // persisted file always holds a well-formed, registerable combo.
         HotkeyCombo = NoiseSnitch.Model.Hotkey.Parse(HotkeyCombo).ToString(),
+        // Snap an out-of-range enum (e.g. a bogus number in a hand-edited file)
+        // back to the default so the runtime only ever sees a defined mode.
+        NotificationMode = System.Enum.IsDefined(NotificationMode)
+            ? NotificationMode
+            : DefaultNotificationMode,
     };
 
     private static int Clamp(int value, int min, int max, int fallback)

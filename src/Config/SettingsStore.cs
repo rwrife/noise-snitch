@@ -32,6 +32,15 @@ internal sealed class SettingsStore
         // Be forgiving of hand-edits: tolerate comments and trailing commas.
         ReadCommentHandling = JsonCommentHandling.Skip,
         AllowTrailingCommas = true,
+        // Issue #29: serialize enums (NotificationMode) by name so the file is
+        // hand-editable ("Toast" not 1) and tolerant of case. Unknown names
+        // deserialize to the underlying default (0 = Flash) and are then re-
+        // clamped by Settings.Normalized via Enum.IsDefined.
+        Converters =
+        {
+            new System.Text.Json.Serialization.JsonStringEnumConverter(
+                namingPolicy: null, allowIntegerValues: true),
+        },
     };
 
     private readonly string? _path;
