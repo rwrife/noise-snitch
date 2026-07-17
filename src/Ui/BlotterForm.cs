@@ -188,6 +188,23 @@ internal sealed class BlotterForm : Form
     }
 
     /// <summary>
+    /// Issue #28: toggles the flyout for a global-hotkey press — if it's already
+    /// visible, hide it; otherwise show it near <paramref name="anchor"/>. Lets the
+    /// same shortcut both summon and dismiss the blotter.
+    /// </summary>
+    public void ToggleNear(Point anchor)
+    {
+        if (Visible)
+        {
+            HideFlyout();
+        }
+        else
+        {
+            ShowNear(anchor);
+        }
+    }
+
+    /// <summary>
     /// Hook the store so new onsets refresh the list immediately while the flyout
     /// is open. Marshals onto the UI thread since the watcher may add from its
     /// timer/STA tick.

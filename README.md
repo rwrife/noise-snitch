@@ -89,6 +89,8 @@ On first launch noise-snitch writes a settings file you can hand-edit:
 | `QuietHoursEnd` | `"07:00"` | **v0.2:** exclusive quiet-window end. If earlier than start, the window wraps past midnight. |
 | `IgnoredApps` | `[]` | **v0.2:** process names to ignore. Onsets from these apps are dropped from the feed and blotter. Matched case-insensitively with a trailing `.exe` stripped, so `"Spotify"`, `"spotify"`, and `"spotify.exe"` all mean the same app. |
 | `PersonalityPack` | `"butler"` | **v0.2:** the snitch's voice across the tray tooltip, blotter empty-state, and event phrasing. Matched case-insensitively; an unknown value falls back to `"butler"`. See [Personality packs](#personality-packs-v02). |
+| `HotkeyEnabled` | `true` | **v0.2:** when `true`, a system-wide hotkey (see `HotkeyCombo`) toggles the blotter flyout from anywhere. See [Global hotkey](#global-hotkey-v02). |
+| `HotkeyCombo` | `"Ctrl+Alt+N"` | **v0.2:** the global hotkey combo. `+`-separated modifiers (`Ctrl`/`Alt`/`Shift`/`Win`, aliases like `Control`/`Cmd` accepted) plus one main key (`A`–`Z`, `0`–`9`, `F1`–`F24`, or `Space`/`Enter`/`Esc`/`Home`/`End`/`Insert`/`Delete`). Case- and spacing-insensitive; an unparseable value falls back to `Ctrl+Alt+N`. Needs at least one modifier. |
 
 Values are range-checked on load — a missing, empty, corrupt, or out-of-range
 file safely falls back to the defaults, so the app always starts. Changes take
@@ -218,6 +220,35 @@ An unknown or missing pack name safely falls back to **Polite Butler**.
 
 > A settings UI to add/remove ignored apps and an in-blotter "ignore this app"
 > action are the next slices; the filtering engine and file format land here.
+
+
+## Global hotkey (v0.2)
+
+Don't reach for the tray — pop the blotter from anywhere with a system-wide
+hotkey. The default is **`Ctrl+Alt+N`**; pressing it toggles the flyout open
+(near your cursor) or closes it if it's already up.
+
+Change the combo via `HotkeyCombo` in `settings.json`:
+
+```json
+{
+  "HotkeyEnabled": true,
+  "HotkeyCombo": "Ctrl+Shift+F9"
+}
+```
+
+- **Modifiers:** `Ctrl`, `Alt`, `Shift`, `Win` (aliases like `Control`, `Cmd`,
+  `Super` also work). At least one modifier is required — a bare key would
+  hijack a plain keystroke system-wide.
+- **Main key:** one of `A`–`Z`, `0`–`9`, `F1`–`F24`, or `Space`, `Enter`,
+  `Esc`, `Tab`, `Home`, `End`, `Insert`, `Delete`.
+- Case- and spacing-insensitive; an unparseable value falls back to
+  `Ctrl+Alt+N`.
+- Set `"HotkeyEnabled": false` to turn the shortcut off entirely.
+
+If the combo is **already claimed** by another app, noise-snitch logs the clash
+and simply runs without the shortcut this session — nothing crashes, and the
+tray icon still works. Pick a different combo and restart to try again.
 
 
 ## Noise leaderboard (v0.2)
