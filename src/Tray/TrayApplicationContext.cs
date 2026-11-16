@@ -60,6 +60,13 @@ internal sealed class TrayApplicationContext : ApplicationContext
     // switchable at runtime from the tray's Personality submenu without a restart.
     private SnitchPersonality _personality;
 
+    // Issue #29: how caught onsets are surfaced (Flash / Toast / Both). Loaded
+    // from settings and switchable live from the tray's Notifications submenu
+    // without a restart. The onset stream feeding this is already filtered by
+    // debounce / ignore-list, so per-event toasts inherit that suppression for
+    // free; quiet-hours still adds its own louder escalation on top.
+    private NotificationMode _notificationMode;
+
     // Issue #28: system-wide hotkey to pop the blotter. A hidden native window
     // receives WM_HOTKEY and raises Pressed; we toggle the flyout near the cursor.
     // Null when the feature is disabled in settings or registration failed.
@@ -104,6 +111,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
         // Issue #24: resolve the persisted personality pack (fallback-safe).
         _personality = PersonalityCatalog.Resolve(settings.PersonalityPack);
         DebugLog.Write($"[personality] active pack={_personality.Key} ({_personality.DisplayName})");
+        // Issue #29: how onsets are surfaced (flash / toast / both).
+        _notificationMode = settings.NotificationMode;
+        DebugLog.Write($"[notify] notification mode={_notificationMode}");
         // Issue #22: aggregate "who keeps doing this?" view of today's noise.
         menu.Items.Add("Leaderboard", null, OnShowLeaderboard);
         // Issue #23: glanceable summary of today's noise activity.
@@ -120,6 +130,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
         menu.Items.Add(new ToolStripSeparator());
         // Issue #24: pick the snitch's voice; applies live (no restart).
         menu.Items.Add(BuildPersonalityMenu());
+        // Issue #29: pick how onsets are surfaced (flash / toast / both); live.
+        menu.Items.Add(BuildNotificationMenu());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Quit", null, OnQuit);
 
@@ -243,8 +255,30 @@ internal sealed class TrayApplicationContext : ApplicationContext
     /// </summary>
     private void OnNoiseAddedUi(NoiseEvent e)
     {
-        FlashNow();
-        MaybeAlertQuietHours(e);
+        // Issue #29: flash the icon only in Flash/Both modes.
+        if (_notificationMode is NotificationMode.Flash or NotificationMode.Both)
+        {
+            FlashNow();
+        }
+
+        // Issue #8 escalation takes precedence over the ordinary per-event toast
+        // (it's the same balloon channel and a louder message). If it fired, we
+        // don't also raise the regular toast for this onset.
+        if (MaybeAlertQuietHours(e))
+        {
+            return;
+        }
+
+        // Issue #29: per-event toast in Toast/Both modes, phrased by the active
+        // pack. The onset already passed debounce + ignore-list upstream, so this
+        // inherits that suppression and won't spam.
+        if (_notificationMode is NotificationMode.Toast or NotificationMode.Both)
+        {
+            _notifyIcon.BalloonTipTitle = NotificationFormatter.ToastTitle;
+            _notifyIcon.BalloonTipText =
+                NotificationFormatter.Body(e, _personality, DateTime.UtcNow);
+            _notifyIcon.ShowBalloonTip(3000);
+        }
     }
 
     /// <summary>
@@ -253,18 +287,20 @@ internal sealed class TrayApplicationContext : ApplicationContext
     /// window is impossible to miss. Uses <see cref="DateTime.Now"/> (local),
     /// because a quiet window is a human-schedule concept. A no-op when the
     /// feature is off or we're outside the window — the flash already happened.
+    /// Returns <c>true</c> when it raised the escalation balloon.
     /// </summary>
-    private void MaybeAlertQuietHours(NoiseEvent e)
+    private bool MaybeAlertQuietHours(NoiseEvent e)
     {
         if (!_quietHours.IsQuietAt(DateTime.Now))
         {
-            return;
+            return false;
         }
 
         _notifyIcon.BalloonTipTitle = QuietHoursAlertFormatter.AlertTitle;
         _notifyIcon.BalloonTipText = QuietHoursAlertFormatter.Body(e);
         _notifyIcon.ShowBalloonTip(3000);
         DebugLog.Write($"[quiet] escalated onset in-window: {e}");
+        return true;
     }
 
     /// <summary>Swaps to the lit icon and arms/extends the restore timer. UI thread only.</summary>
@@ -461,6 +497,68 @@ internal sealed class TrayApplicationContext : ApplicationContext
         current.PersonalityPack = _personality.Key;
         _settingsStore.Save(current);
         DebugLog.Write($"[personality] switched to {_personality.Key} ({_personality.DisplayName})");
+    }
+
+    // Issue #29: a checkable submenu listing every notification mode. Selecting
+    // one switches how onsets are surfaced live and persists the choice.
+    private ToolStripMenuItem BuildNotificationMenu()
+    {
+        var root = new ToolStripMenuItem("Notifications");
+        foreach ((NotificationMode mode, string label) in new[]
+        {
+            (NotificationMode.Flash, "Flash tray icon"),
+            (NotificationMode.Toast, "Toast notification"),
+            (NotificationMode.Both, "Flash + toast"),
+        })
+        {
+            var item = new ToolStripMenuItem(label)
+            {
+                Tag = mode,
+                Checked = mode == _notificationMode,
+                CheckOnClick = false,
+            };
+            item.Click += OnNotificationModeSelected;
+            root.DropDownItems.Add(item);
+        }
+
+        return root;
+    }
+
+    // Issue #29: apply a picked notification mode without a restart — retick the
+    // sibling checkmarks and persist the choice (load-modify-save so we don't
+    // clobber other fields).
+    private void OnNotificationModeSelected(object? sender, EventArgs e)
+    {
+        if (sender is not ToolStripMenuItem clicked || clicked.Tag is not NotificationMode mode)
+        {
+            return;
+        }
+
+        _notificationMode = mode;
+
+        if (clicked.OwnerItem is ToolStripMenuItem root)
+        {
+            foreach (ToolStripItem sibling in root.DropDownItems)
+            {
+                if (sibling is ToolStripMenuItem mi && mi.Tag is NotificationMode k)
+                {
+                    mi.Checked = k == _notificationMode;
+                }
+            }
+        }
+
+        // If we just left a flash-showing mode, drop back to the calm icon so a
+        // lingering flash from the old mode doesn't stick.
+        if (_notificationMode == NotificationMode.Toast)
+        {
+            _flashTimer.Stop();
+            RestoreRestingIcon();
+        }
+
+        Settings current = _settingsStore.Load();
+        current.NotificationMode = _notificationMode;
+        _settingsStore.Save(current);
+        DebugLog.Write($"[notify] switched to {_notificationMode}");
     }
 
     private void OnAbout(object? sender, EventArgs e)

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Windows.Forms;
 using NoiseSnitch.Diagnostics;
 using NoiseSnitch.Model;
@@ -26,7 +27,8 @@ internal sealed class SessionWatcher : IDisposable
     /// <summary>Default poll cadence. Fast enough to feel live, cheap enough to ignore.</summary>
     public static readonly TimeSpan DefaultInterval = TimeSpan.FromMilliseconds(750);
 
-    private readonly AudioSessionEnumerator _enumerator = new();
+    private readonly AudioSessionEnumerator? _enumerator;
+    private readonly Func<IReadOnlyList<AudioSessionSnapshot>> _snapshot;
     private readonly System.Windows.Forms.Timer _timer = new();
     private readonly EdgeDetector _detector;
     private readonly EventStore _events;
@@ -41,8 +43,19 @@ internal sealed class SessionWatcher : IDisposable
         EdgeDetectorOptions? detectorOptions = null,
         EventStore? events = null,
         NoiseLog? log = null,
-        IgnoreList? ignore = null)
+        IgnoreList? ignore = null,
+        Func<IReadOnlyList<AudioSessionSnapshot>>? snapshot = null)
     {
+        if (snapshot is null)
+        {
+            _enumerator = new AudioSessionEnumerator();
+            _snapshot = _enumerator.Snapshot;
+        }
+        else
+        {
+            _snapshot = snapshot;
+        }
+
         _timer.Interval = (int)(interval ?? DefaultInterval).TotalMilliseconds;
         _timer.Tick += OnTick;
         _detector = new EdgeDetector(detectorOptions);
@@ -73,9 +86,12 @@ internal sealed class SessionWatcher : IDisposable
         _timer.Start();
     }
 
-    private void OnTick(object? sender, EventArgs e)
+    private void OnTick(object? sender, EventArgs e) => Poll();
+
+    internal void Poll()
     {
-        var snapshots = _enumerator.Snapshot();
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        var snapshots = _snapshot();
 
         // Always run the detector — even an empty tick matters, because absent
         // sessions are how a stopped stream re-arms for its next onset.
@@ -105,6 +121,6 @@ internal sealed class SessionWatcher : IDisposable
         _disposed = true;
         _timer.Tick -= OnTick;
         _timer.Dispose();
-        _enumerator.Dispose();
+        _enumerator?.Dispose();
     }
 }
