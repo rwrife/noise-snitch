@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using NoiseSnitch.Diagnostics;
 using NoiseSnitch.Model;
 
@@ -32,16 +33,50 @@ internal sealed class SettingsStore
         // Be forgiving of hand-edits: tolerate comments and trailing commas.
         ReadCommentHandling = JsonCommentHandling.Skip,
         AllowTrailingCommas = true,
-        // Issue #29: serialize enums (NotificationMode) by name so the file is
-        // hand-editable ("Toast" not 1) and tolerant of case. Unknown names
-        // deserialize to the underlying default (0 = Flash) and are then re-
-        // clamped by Settings.Normalized via Enum.IsDefined.
         Converters =
         {
-            new System.Text.Json.Serialization.JsonStringEnumConverter(
-                namingPolicy: null, allowIntegerValues: true),
+            new NotificationModeConverter(),
         },
     };
+
+    private sealed class NotificationModeConverter : JsonConverter<NotificationMode>
+    {
+        public override NotificationMode Read(
+            ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.Number)
+            {
+                if (reader.TryGetInt32(out int number))
+                {
+                    return (NotificationMode)number;
+                }
+
+                DebugLog.Write("[settings] out-of-range NotificationMode; using Flash.");
+                return Settings.DefaultNotificationMode;
+            }
+
+            if (reader.TokenType == JsonTokenType.String)
+            {
+                string? text = reader.GetString();
+                if (Enum.TryParse<NotificationMode>(text, ignoreCase: true, out var mode)
+                    && Enum.IsDefined(mode))
+                {
+                    return mode;
+                }
+
+                // A typo in the mode must not discard unrelated settings,
+                // especially the ignore list and quiet-hours configuration.
+                DebugLog.Write("[settings] unknown NotificationMode; using Flash.");
+                return Settings.DefaultNotificationMode;
+            }
+
+            throw new JsonException("NotificationMode must be a name or integer.");
+        }
+
+        public override void Write(
+            Utf8JsonWriter writer, NotificationMode value, JsonSerializerOptions options) =>
+            writer.WriteStringValue(value.ToString());
+    }
 
     private readonly string? _path;
 

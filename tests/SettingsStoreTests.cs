@@ -69,14 +69,18 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.Equal("06:30", loaded.QuietHoursEnd);
     }
 
-    [Fact]
-    public void NotificationMode_Round_Trips_By_Name()
+    [Theory]
+    [InlineData("Flash")]
+    [InlineData("Toast")]
+    [InlineData("Both")]
+    public void NotificationMode_Round_Trips_By_Name(string modeName)
     {
         // Issue #29: the mode persists (as a readable name) and reloads intact.
+        var mode = Enum.Parse<NotificationMode>(modeName);
         var store = new SettingsStore(_path);
-        Assert.True(store.Save(new Settings { NotificationMode = NotificationMode.Both }));
-        Assert.Contains("\"Both\"", File.ReadAllText(_path));
-        Assert.Equal(NotificationMode.Both, store.Load().NotificationMode);
+        Assert.True(store.Save(new Settings { NotificationMode = mode }));
+        Assert.Contains($"\"NotificationMode\": \"{mode}\"", File.ReadAllText(_path));
+        Assert.Equal(mode, store.Load().NotificationMode);
     }
 
     [Fact]
@@ -87,13 +91,24 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.Equal(NotificationMode.Toast, new SettingsStore(_path).Load().NotificationMode);
     }
 
-    [Fact]
-    public void Load_HandEdited_Unknown_NotificationMode_Falls_Back_To_Default()
+    [Theory]
+    [InlineData("99")]
+    [InlineData("2147483648")]
+    [InlineData("\"unknown\"")]
+    public void Load_HandEdited_Unknown_NotificationMode_Preserves_Other_Settings(string jsonMode)
     {
-        // A bogus numeric value must not reach the runtime as an undefined enum.
-        File.WriteAllText(_path, "{ \"NotificationMode\": 99 }");
-        Assert.Equal(Settings.DefaultNotificationMode,
-            new SettingsStore(_path).Load().NotificationMode);
+        File.WriteAllText(_path,
+            "{ \"NotificationMode\": " + jsonMode + ", \"PollIntervalMs\": 400, " +
+            "\"IgnoredApps\": [\"spotify\"], \"PersonalityPack\": \"gremlin\", " +
+            "\"QuietHoursEnabled\": true, \"QuietHoursStart\": \"21:00\" }");
+        var loaded = new SettingsStore(_path).Load();
+
+        Assert.Equal(Settings.DefaultNotificationMode, loaded.NotificationMode);
+        Assert.Equal(400, loaded.PollIntervalMs);
+        Assert.Equal(new[] { "spotify" }, loaded.IgnoredApps);
+        Assert.Equal("gremlin", loaded.PersonalityPack);
+        Assert.True(loaded.QuietHoursEnabled);
+        Assert.Equal("21:00", loaded.QuietHoursStart);
     }
 
     [Fact]

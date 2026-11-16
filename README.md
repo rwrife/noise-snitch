@@ -169,8 +169,9 @@ Enable it in `settings.json`:
 - When **end is earlier than start** the window **wraps past midnight**, so
   `22:00`–`07:00` covers the whole night. (Want almost-all-day? Use distinct
   endpoints like `00:00`–`23:59`; identical endpoints mean "no window".)
-- During quiet hours each onset still flashes the tray icon **and** raises a
-  balloon naming the culprit. Outside the window, behaviour is unchanged.
+- During quiet hours each onset raises a balloon naming the culprit and still
+  flashes the tray icon unless **Toast notification** mode is selected. Outside
+  the window, behaviour is unchanged.
 
 Escalation is **off by default** and, like every setting, takes effect on the
 next launch.
@@ -203,6 +204,9 @@ Your choice is saved to `NotificationMode` in `settings.json`:
   "NotificationMode": "Both"
 }
 ```
+
+Names are case-insensitive. An unknown mode falls back to `Flash` without
+resetting other settings, including your ignore list and quiet-hours window.
 
 ## Per-app ignore list (v0.2)
 

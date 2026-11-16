@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using NoiseSnitch.AudioWatcher;
 using NoiseSnitch.Model;
 using NoiseSnitch.Personality;
 using NoiseSnitch.Ui;
@@ -56,7 +58,63 @@ public sealed class NotificationTests
     {
         var e = Event(pid: 0, name: "");
         string body = NotificationFormatter.Body(e, PersonalityCatalog.Default, e.TimestampUtc);
-        Assert.Contains("System Sounds", body);
+        Assert.Equal(PersonalityCatalog.Default.PhraseEvent("System sounds") + " (now)", body);
+    }
+
+    [Fact]
+    public void Ignored_Onsets_Do_Not_Reach_Notification_Stream()
+    {
+        var now = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        using var watcher = new SessionWatcher(
+            ignore: new IgnoreList(new[] { "Spotify.exe" }),
+            snapshot: () => new[]
+            {
+                new AudioSessionSnapshot(now, 10, "spotify", "", 0.5f, true),
+                new AudioSessionSnapshot(now, 20, "chrome", "", 0.5f, true),
+            });
+        var notifications = new List<string>();
+        watcher.Events.Added += (_, e) =>
+            notifications.Add(NotificationFormatter.Body(e, PersonalityCatalog.Default, now));
+
+        watcher.Poll();
+
+        Assert.Equal(
+            PersonalityCatalog.Default.PhraseEvent("Google Chrome") + " (now)",
+            Assert.Single(notifications));
+        Assert.Equal("chrome", Assert.Single(watcher.Events.Recent()).ProcessName);
+    }
+
+    [Fact]
+    public void Debounce_Suppresses_Notifications_Until_Release()
+    {
+        var now = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        float peak = 0.5f;
+        using var watcher = new SessionWatcher(
+            detectorOptions: new EdgeDetectorOptions(0.1f, TimeSpan.FromSeconds(1)),
+            snapshot: () => new[]
+            {
+                new AudioSessionSnapshot(now, 20, "chrome", "", peak, true),
+            });
+        var notifications = new List<string>();
+        watcher.Events.Added += (_, e) =>
+            notifications.Add(NotificationFormatter.Body(e, PersonalityCatalog.Default, now));
+
+        watcher.Poll();
+        now = now.AddMilliseconds(500);
+        watcher.Poll(); // Continuous sound.
+        peak = 0;
+        watcher.Poll();
+        now = now.AddMilliseconds(500);
+        peak = 0.5f;
+        watcher.Poll(); // A brief dip does not re-arm.
+        Assert.Single(notifications);
+
+        peak = 0;
+        watcher.Poll();
+        now = now.AddSeconds(1);
+        peak = 0.5f;
+        watcher.Poll();
+        Assert.Equal(2, notifications.Count);
     }
 
     [Fact]
