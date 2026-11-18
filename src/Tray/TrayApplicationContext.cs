@@ -174,6 +174,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             toggleMute: ToggleCulpritMute);
         // Issue #24: seed the blotter's empty-state from the active pack.
         _blotter.EmptyStateText = _personality.BlotterEmptyState;
+        _watcher.OutputLevelChanged += _blotter.UpdateOutputLevel;
 
         // M5: flash the tray icon whenever an onset is recorded. Subscribing to
         // the store (rather than the watcher) means every event that reaches the
@@ -615,6 +616,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _hotkey.Pressed -= OnHotkeyPressed;
             _hotkey.Dispose();
         }
+        _watcher.OutputLevelChanged -= _blotter.UpdateOutputLevel;
         _watcher.Dispose();
         _muter.Dispose();
         _blotter.HideFlyout();
@@ -633,6 +635,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
                 _hotkey.Pressed -= OnHotkeyPressed;
                 _hotkey.Dispose();
             }
+            _watcher.OutputLevelChanged -= _blotter.UpdateOutputLevel;
             _watcher.Dispose();
             _muter.Dispose();
             _blotter.Dispose();
