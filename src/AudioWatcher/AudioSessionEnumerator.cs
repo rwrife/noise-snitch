@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using NAudio.CoreAudioApi;
 using NAudio.CoreAudioApi.Interfaces;
 using NoiseSnitch.Diagnostics;
@@ -34,6 +35,9 @@ internal sealed class AudioSessionEnumerator : IDisposable
 
     private bool _disposed;
 
+    /// <summary>The latest default-device master peak; null when unavailable.</summary>
+    public float? OutputPeak { get; private set; }
+
     /// <summary>
     /// Takes a snapshot of every render session on the current default output
     /// device. Never throws for a single bad session — problem sessions are
@@ -43,6 +47,7 @@ internal sealed class AudioSessionEnumerator : IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
+        OutputPeak = null;
         var now = DateTime.UtcNow;
         var results = new List<AudioSessionSnapshot>();
 
@@ -56,6 +61,16 @@ internal sealed class AudioSessionEnumerator : IDisposable
             }
 
             device = _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+            try
+            {
+                OutputPeak = device.AudioMeterInformation.MasterPeakValue;
+            }
+            catch (COMException ex)
+            {
+                // A failed master meter must not suppress the per-app history.
+                DebugLog.Write($"[audio] output meter read failed: {ex.GetType().Name}: {ex.Message}");
+            }
+
             var sessions = device.AudioSessionManager.Sessions;
 
             for (int i = 0; i < sessions.Count; i++)

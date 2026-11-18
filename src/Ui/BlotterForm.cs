@@ -45,6 +45,7 @@ internal sealed class BlotterForm : Form
     private readonly AppIconProvider _icons = new(IconSize);
     private readonly ListBox _list;
     private readonly Label _header;
+    private readonly ProgressBar _outputMeter;
     private readonly System.Windows.Forms.Timer _refreshTimer;
 
     // v0.2 "Mute-the-snitched" (issue #7). The tray owns the actual muting; the
@@ -105,7 +106,7 @@ internal sealed class BlotterForm : Form
         StartPosition = FormStartPosition.Manual;
         BackColor = BackColorDark;
         Width = 340;
-        Height = RowHeight * VisibleRows + 40;
+        Height = RowHeight * VisibleRows + 68;
         TopMost = true;
         // Subtle rounded-ish border via a 1px padding frame.
         Padding = new Padding(1);
@@ -138,11 +139,40 @@ internal sealed class BlotterForm : Form
         // v0.2: right-click a row to mute/unmute that culprit (issue #7).
         _list.MouseUp += OnListMouseUp;
 
+        var outputRow = new Panel
+        {
+            Dock = DockStyle.Top,
+            Height = 28,
+            Padding = new Padding(12, 5, 12, 7),
+        };
+        var outputLabel = new Label
+        {
+            Dock = DockStyle.Left,
+            Width = 100,
+            Text = "System output",
+            ForeColor = SecondaryText,
+        };
+        _outputMeter = new ProgressBar
+        {
+            Dock = DockStyle.Fill,
+            Maximum = 1000,
+            AccessibleName = "System output level",
+        };
+        outputRow.Controls.Add(_outputMeter);
+        outputRow.Controls.Add(outputLabel);
+
         Controls.Add(_list);
+        Controls.Add(outputRow);
         Controls.Add(_header);
 
         _refreshTimer = new System.Windows.Forms.Timer { Interval = 1000 };
         _refreshTimer.Tick += (_, _) => Reload();
+    }
+
+    /// <summary>Receives the normalized master level on the audio poll's UI thread.</summary>
+    public void UpdateOutputLevel(float level)
+    {
+        _outputMeter.Value = (int)Math.Round(level * _outputMeter.Maximum);
     }
 
     /// <summary>

@@ -22,6 +22,12 @@ names** (`3s ago — Google Chrome`), auto-refreshing while open, and a friendly
 empty state when all is quiet. Events live in an in-memory ring buffer and are
 also logged to `%LOCALAPPDATA%\noise-snitch\noise-snitch.log`.
 
+The blotter's **System output** header meter shows the default playback device's
+overall peak level (`0`-`1`), sampled on the same polling tick as per-app sessions.
+It rises immediately and decays smoothly between peaks, including sounds from
+ignored apps. With no default output device or a failed meter read, it resets to
+zero; per-app history stays available. No extra setting or persistence is needed.
+
 **M5 delivered:** the tray icon now **flashes** on every new noise event — the
 calm ear glyph briefly lights up (brighter amber + a glowing ring) so a glance at
 the tray tells you something just made a sound; bursts coalesce into one steady

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Windows.Forms;
 using NoiseSnitch.Diagnostics;
 using NoiseSnitch.Model;
@@ -29,6 +30,7 @@ internal sealed class SessionWatcher : IDisposable
 
     private readonly AudioSessionEnumerator? _enumerator;
     private readonly Func<IReadOnlyList<AudioSessionSnapshot>> _snapshot;
+    private readonly Func<float?> _outputPeak;
     private readonly System.Windows.Forms.Timer _timer = new();
     private readonly EdgeDetector _detector;
     private readonly EventStore _events;
@@ -37,6 +39,7 @@ internal sealed class SessionWatcher : IDisposable
 
     private bool _started;
     private bool _disposed;
+    private long _lastPoll = Stopwatch.GetTimestamp();
 
     public SessionWatcher(
         TimeSpan? interval = null,
@@ -44,7 +47,8 @@ internal sealed class SessionWatcher : IDisposable
         EventStore? events = null,
         NoiseLog? log = null,
         IgnoreList? ignore = null,
-        Func<IReadOnlyList<AudioSessionSnapshot>>? snapshot = null)
+        Func<IReadOnlyList<AudioSessionSnapshot>>? snapshot = null,
+        Func<float?>? outputPeak = null)
     {
         if (snapshot is null)
         {
@@ -56,6 +60,7 @@ internal sealed class SessionWatcher : IDisposable
             _snapshot = snapshot;
         }
 
+        _outputPeak = outputPeak ?? (() => _enumerator?.OutputPeak);
         _timer.Interval = (int)(interval ?? DefaultInterval).TotalMilliseconds;
         _timer.Tick += OnTick;
         _detector = new EdgeDetector(detectorOptions);
@@ -69,6 +74,9 @@ internal sealed class SessionWatcher : IDisposable
 
     /// <summary>The recent-events history the blotter (M4) renders.</summary>
     public EventStore Events => _events;
+
+    public float OutputLevel { get; private set; }
+    public event Action<float>? OutputLevelChanged;
 
     /// <summary>Begins polling. Idempotent.</summary>
     public void Start()
@@ -92,6 +100,11 @@ internal sealed class SessionWatcher : IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         var snapshots = _snapshot();
+        long now = Stopwatch.GetTimestamp();
+        OutputLevel = OutputLevelMeter.Update(
+            OutputLevel, _outputPeak(), Stopwatch.GetElapsedTime(_lastPoll, now));
+        _lastPoll = now;
+        OutputLevelChanged?.Invoke(OutputLevel);
 
         // Always run the detector — even an empty tick matters, because absent
         // sessions are how a stopped stream re-arms for its next onset.
