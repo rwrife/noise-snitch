@@ -12,59 +12,11 @@ Windows shows you a *live* volume mixer, but the instant a sound stops, the evid
 
 ## Status
 
-🚧 Early. **M1–M5 done; M6 in progress.** The tray app boots (icon + Quit),
-wires up NAudio to read per-app audio sessions on a timer, turns that stream into
-clean **noise events** (silent → active onset detection with debounce so a
-continuous stream snitches once), and renders them in a **blotter flyout**:
-left-click (or double-click) the tray icon to pop a list of recent events —
-newest first, with **per-app icons**, relative timestamps and **friendly app
-names** (`3s ago — Google Chrome`), auto-refreshing while open, and a friendly
-empty state when all is quiet. Events live in an in-memory ring buffer and are
-also logged to `%LOCALAPPDATA%\noise-snitch\noise-snitch.log`.
+**Project status: v0.2 complete (M1–M6).** The Windows tray app detects per-app audio onsets and includes the live blotter, persisted settings, mute, quiet-hours alerts, ignored-app filtering, leaderboard, on-demand daily digest, personality packs, global hotkey, notification modes, system output meter, and optional durable history with last-hour export.
 
-The blotter's **System output** header meter shows the default playback device's
-overall peak level (`0`-`1`), sampled on the same polling tick as per-app sessions.
-It rises immediately and decays smoothly between peaks, including sounds from
-ignored apps. With no default output device or a failed meter read, it resets to
-zero; per-app history stays available. No extra setting or persistence is needed.
+CI builds and tests the solution, then publishes a self-contained Windows executable. Durable history is opt-in and stored locally. The remaining ideas are explicitly deferred in [PLAN.md](./PLAN.md); they are not blockers for the v0.2 closeout.
 
-**M5 delivered:** the tray icon now **flashes** on every new noise event — the
-calm ear glyph briefly lights up (brighter amber + a glowing ring) so a glance at
-the tray tells you something just made a sound; bursts coalesce into one steady
-flash rather than strobing, then it settles back to calm. Plus friendly process
-names in the blotter and persisted **settings** — poll interval, how many events
-to keep, and the onset peak/debounce thresholds load from (and are written to)
-`%LOCALAPPDATA%\noise-snitch\settings.json`, so you can tune the snitch and it
-remembers. And the blotter now shows each culprit's **app icon** next to its
-name — extracted from the owning process's executable and cached, with a neutral
-placeholder dot when a process is a system session or has already exited — which
-closes out the M5 polish checklist.
-
-**New in M6 (so far):** optional **durable history**. Turn on `PersistLog` and
-every noise event is appended to a rolling, size-capped **JSONL** log
-(`%LOCALAPPDATA%
-oise-snitch
-oise-log.jsonl`) that survives restarts; a
-**“Copy last hour”** tray action puts a tidy, paste-ready report (with a per-app
-tally) on your clipboard so you can call out a repeat offender. Persistence is
-**off by default** — the snitch stays local-only until you opt in. See
-[PLAN.md](./PLAN.md) for the roadmap and
-[issues](https://github.com/rwrife/noise-snitch/issues) for milestones.
-
-**New (v0.2 backlog):** **Mute-the-snitched.** Right-click any blotter row to
-**mute the culprit** — noise-snitch finds that app's live audio session and
-silences it (EarTrumpet-lite), right from the row that snitched. Right-click
-again to unmute. Muted apps are shown dimmed and struck-through with a 🔇 marker
-so you can see at a glance who you've silenced. The shared **System sounds**
-session isn't offered (it's not a single culprit app), and if an app has already
-gone quiet there's simply nothing to mute.
-
-**Also new (v0.2 backlog):** **Quiet-hours alerting.** Define a focus/sleep
-window and noise-snitch stops letting sounds slip by unnoticed during it: any app
-that makes noise inside your quiet hours gets **escalated** with a loud tray
-balloon ("🔊 Google Chrome just made a sound during your quiet hours") on top of
-the usual flash. The window is hand-editable `HH:mm` and **wraps past midnight**
-(e.g. `22:00`–`07:00`), so overnight focus Just Works. Off until you opt in.
+The blotter's **System output** header meter shows the default playback device's overall peak level (`0`–`1`) on the same polling tick as per-app sessions. It updates live, decays smoothly, and resets to zero if the device or meter reading is unavailable, without interrupting per-app history.
 
 ## Planned MVP (v0.1)
 
@@ -258,8 +210,8 @@ Set it directly if you prefer:
 An unknown or missing pack name safely falls back to **Polite Butler**.
 
 
-> A settings UI to add/remove ignored apps and an in-blotter "ignore this app"
-> action are the next slices; the filtering engine and file format land here.
+Ignored-app filtering is available through the `IgnoredApps` setting. A settings
+UI and a quick "ignore this app" blotter action are deferred; see [PLAN.md](./PLAN.md).
 
 
 ## Global hotkey (v0.2)
@@ -321,6 +273,8 @@ unit-tested without any live audio.
 
 ## Daily digest (v0.2)
 
+The digest is available on demand from the tray; scheduled delivery is deferred (see [PLAN.md](./PLAN.md)).
+
 Where the leaderboard ranks apps, the **digest** gives you the one-line
 tl;dr of the day. Right-click the tray icon → **Today's digest** for a
 glanceable summary of total activity and each app's share:
@@ -381,5 +335,3 @@ every push/PR (see [`.github/workflows/build.yml`](./.github/workflows/build.yml
 MIT (see [LICENSE](./LICENSE)).
 
 ---
-
-*Part of an automated tool-lab experiment. Topic: `auto-tool-lab`.*

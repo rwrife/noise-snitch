@@ -77,20 +77,16 @@ Key modules:
 5. **M5 — Flash + polish.** Tray icon flashes/badges on each new event; friendly process names + app icons; debounce tuning; settings for poll interval & how many events to keep. *(Ships: it feels good to use.)*
 6. **M6 — Persistence + export.** Optional rolling on-disk log (SQLite or JSONL) and "copy/export last hour" so users can report a repeat offender. *(Ships: forensics that survive restarts.)*
 
-## 8. Backlog / future features (v0.2+)
+## 8. Deferred ideas (not v0.2 closeout blockers)
 
-1. **Mute-the-snitched** — one click from a blotter entry to mute that app's session (EarTrumpet-lite).
-2. **"Who keeps doing this?"** leaderboard — ranks apps by number of noise events per day.
-3. **Quiet-hours alerting** — if anything makes noise during your set focus window, flag it loudly (or to a notification).
-4. **Per-app rules** — allowlist apps you don't care about (e.g., your music player) so they never snitch.
-5. **Sound fingerprint thumbnail** — capture a 1–2s waveform/clip of the offending audio so you can recognize *which* ding it was.
-6. **Browser-tab drill-down** — best-effort: when the culprit is a browser, surface the active/most-recent tab title.
-7. **Daily digest** — "Today your PC made 214 sounds; Slack was responsible for 38%."
-8. **Global hotkey** — pop the blotter instantly without reaching for the tray.
-9. **Notification-only mode** — toast "🔊 chrome.exe just made a sound" instead of (or with) the flash.
-10. **Theming / personality packs** — swap the snitch's tone ("polite butler" vs. "tattletale gremlin") in tooltips and digests.
-11. **Cross-session timeline view** — a real scrollable, filterable window for power users.
-12. **Loopback-level meter** — show overall system output level alongside per-app events.
+The v0.2 backlog features—mute, leaderboard, quiet-hours alerts, per-app filtering, on-demand digest, global hotkey, notification modes, personality packs, and the system output meter—are implemented. These optional follow-ups are deferred beyond the current project closeout:
+
+1. **Ignored-app management UI** — add/remove apps in a settings UI and a quick "ignore this app" action from a blotter row. Filtering is already available through `IgnoredApps` in `settings.json`.
+2. **Scheduled daily digest delivery** — the current digest is on demand from the tray.
+3. **Sound fingerprint thumbnail** — capture a short, opt-in waveform or audio clip to help distinguish similar sounds.
+4. **Browser-tab drill-down** — best-effort active or recent tab title for browser processes.
+5. **Cross-session timeline** — a scrollable, filterable history window for power users.
+
 
 ## 9. Out of scope (deliberately NOT building)
 
